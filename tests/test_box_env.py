@@ -224,4 +224,3 @@ def test_planning_module():
         )
 
 # %%
-test_simulation()
