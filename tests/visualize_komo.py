@@ -12,7 +12,7 @@ import gym
 from gym_physx.envs.shaping import PlanBasedShaping
 sys.path.append(os.getenv("HOME") + '/git/rai-python/rai/rai/ry')
 if os.getenv("HOME") + '/git/rai-python/rai/rai/ry' in sys.path:
-    import libry as ry
+    import libry as ry   # pylint: disable=import-error
 
 ENV = gym.make(
     'gym_physx:physx-pushing-v0',
@@ -68,6 +68,7 @@ def show_plan(plan_in):
     )
     show_view = show_env.render()
     return show_view
+
 
 # %%
 violations = []
