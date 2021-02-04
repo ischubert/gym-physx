@@ -3,16 +3,16 @@
 ![](figs/banner.png)
 ## Quick Start
 Install using pip:
-```
-pip install .
+```shell
+$ pip install .
 ```
 And create environment object using gym registry:
-```
+```python
 import gym
 env = gym.make('gym_physx:physx-pushing-v0')
 ```
 The environment exposes the standard OpenAI-Gym API:
-```
+```python
 obs = env.reset()
 while not done:
     action = my_policy(obs[‘observation’], obs[‘desired_goal’])
@@ -32,7 +32,7 @@ The approximate plan is updated each time `env.reset()` is called. It can also b
 The approximate plan can be used by the environment to provide a shaped reward signal either using potential-based reward shaping [(Ng et al. 1999)](http://luthuli.cs.uiuc.edu/~daf/courses/games/AIpapers/ml99-shaping.pdf) or relaxed reward shaping [(Schubert et al. 2021)](https://openreview.net/forum?id=w2Z2OwVNeK). In both cases, the shaped reward is returned by `env.step()` instead of the binary environment reward.
 
 You can use reward shaping by specifying a shaper object:
-```
+```python
 import gym
 from gym_physx.envs.shaping import PlanBasedShaping
 
@@ -46,12 +46,12 @@ env = gym.make(
 
 ### Using the docker image (recommended)
 Use the [`rai-python` Docker images](https://github.com/ischubert/rai-python/packages/) to get started right away:
-```
+```shell
 $ docker pull docker.pkg.github.com/ischubert/rai-python/rai-python:plan_conditioned_rl
 $ docker run -it docker.pkg.github.com/ischubert/rai-python/rai-python:plan_conditioned_rl
-root@CONTAINER_ID:~/git# git clone git@github.com:ischubert/gym-physx.git
-root@CONTAINER_ID:~/git# cd gym-physx
-root@CONTAINER_ID:~/git/gym-physx# pip install .
+root@CONTAINER_ID:~/git$ git clone git@github.com:ischubert/gym-physx.git
+root@CONTAINER_ID:~/git$ cd gym-physx
+root@CONTAINER_ID:~/git/gym-physx$ pip install .
 ```
 
 ### Manual Installation
