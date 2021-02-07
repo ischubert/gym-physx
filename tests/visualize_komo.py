@@ -75,7 +75,7 @@ violations = []
 for _ in range(50):
     obs = ENV.reset()
 
-    plan = obs['desired_goal']
+    plan = obs['current_plan']
     ENV.komo.displayTrajectory()
 
     print(f'KOMO violations: {ENV.komo.getConstraintViolations()}')

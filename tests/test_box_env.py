@@ -164,7 +164,7 @@ def test_planning_module():
 
     for _ in range(50):
         observation = env.reset()
-        plan = observation["desired_goal"]
+        plan = observation["current_plan"]
 
         # ensure acceptable costs
         assert env.komo.getConstraintViolations() < 50

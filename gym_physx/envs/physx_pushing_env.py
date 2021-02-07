@@ -49,6 +49,7 @@ class PhysxPushingEnv(gym.Env):
 
         self.skeleton = None
         self.komo = None
+        self.current_goal = None
         self.current_plan = None
         self.previous_state = None
 
@@ -329,7 +330,8 @@ class PhysxPushingEnv(gym.Env):
         return {
             'observation': self._get_state(),
             'achieved_goal': self.config.frame('box').getPosition().copy(),
-            'desired_goal': None if self.current_plan is None else self.current_plan.copy()
+            'desired_goal': self.current_goal.copy(),
+            'current_plan': None if self.current_plan is None else self.current_plan.copy()
         }
 
     def _calculate_reward(self):
@@ -377,6 +379,7 @@ class PhysxPushingEnv(gym.Env):
         Reset the environment to specific state
         """
         self.previous_state = None
+        self.current_goal = goal_position.copy()
 
         assert self._box_finger_not_colliding(
             finger_position,
