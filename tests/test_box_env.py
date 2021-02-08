@@ -9,9 +9,20 @@ import time
 import numpy as np
 import gym
 from gym_physx.envs.shaping import PlanBasedShaping
+from plan_rl.DDPG.ddpg import ddpg
 
 
-def test_simulation(view=False):
+# TODO implement test
+def test_gym_api():
+    """
+    Test the gym API by running the HER implementation at
+    https://github.com/TianhongDai/hindsight-experience-replay
+    as reference. This test does not check for performance.
+    """
+    raise NotImplementedError
+
+
+def test_simulation(n_trials=20, view=False):
     """
     Test if the sequence of actions defined below
     indeed reaches the goal, and whether the rewards are
@@ -31,8 +42,9 @@ def test_simulation(view=False):
     ), 'r') as data:
         expected_rewards = json.load(data)["expected_rewards"]
 
+    expected_success = expected_rewards[0]
     for shaping_object, expected_reward in zip(
-        shaping_objects, expected_rewards
+            shaping_objects, expected_rewards
     ):
         env = gym.make(
             'gym_physx:physx-pushing-v0',
@@ -41,8 +53,9 @@ def test_simulation(view=False):
         if view:
             view = env.render()
 
-        for _ in range(20):
+        for _ in range(n_trials):
             rewards = []
+            successes = []
             env._controlled_reset(  # pylint: disable=protected-access
                 [-0.3, 0],
                 [-0.6, -0.6],
@@ -62,15 +75,20 @@ def test_simulation(view=False):
             assert len(actions) == len(durations)
             for action, duration in zip(actions, durations):
                 for _ in range(duration):
-                    _, reward, _, _ = env.step(action)
+                    _, reward, _, info = env.step(action)
                     if view:
                         time.sleep(0.02)
                         print(f'reward={reward}')
                     rewards.append(reward)
+                    successes.append(info["is_success"])
             assert np.all(
                 np.abs(
                     (np.array(expected_reward) - np.array(rewards))
                 ) < 1e-1
+            )
+
+            assert np.all(
+                np.array(successes).astype(float) == np.array(expected_success)
             )
 
 

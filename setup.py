@@ -21,7 +21,7 @@ setup(
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
     ],
-    install_requires=['numpy', 'gym'],
+    install_requires=['numpy', 'scipy', 'gym'],
     include_package_data=True,
     data_files=[("", [
         "gym_physx/envs/config_data/pushing.g",
