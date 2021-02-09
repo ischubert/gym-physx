@@ -22,6 +22,9 @@ setup(
         "Operating System :: OS Independent",
     ],
     install_requires=['numpy', 'scipy', 'gym'],
+    extras_require={
+        "testing": ['stable-baselines3']
+    },
     include_package_data=True,
     data_files=[("", [
         "gym_physx/envs/config_data/pushing.g",

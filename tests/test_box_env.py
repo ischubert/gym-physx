@@ -1,6 +1,6 @@
 # %%
 """
-Tests for the BoxEnv
+Tests for the PhysxPushingEnv
 """
 
 import os
@@ -8,18 +8,33 @@ import json
 import time
 import numpy as np
 import gym
+from stable_baselines3 import HER, DDPG, SAC, TD3
 from gym_physx.envs.shaping import PlanBasedShaping
-from plan_rl.DDPG.ddpg import ddpg
 
 
-# TODO implement test
-def test_gym_api():
+# %%
+def test_stable_baselines_her():
     """
-    Test the gym API by running the HER implementation at
-    https://github.com/TianhongDai/hindsight-experience-replay
-    as reference. This test does not check for performance.
+    Test the gym API by running the stable_baselines3 HER implementation
+    https://github.com/DLR-RM/stable-baselines3 as reference.
+    This test does not check for performance.
     """
-    raise NotImplementedError
+    for model_class in [DDPG, SAC, TD3]:
+        # Create env without shaping
+        env = gym.make('gym_physx:physx-pushing-v0')
+
+        # The environment does not have a time limit itself, but
+        # this can be provided using the TimeLimit wrapper
+        env = gym.wrappers.TimeLimit(env, max_episode_steps=500)
+
+        model = HER(
+            'MlpPolicy',
+            env,
+            model_class,
+            verbose=1
+        )
+
+        model.learn(2100)
 
 
 def test_simulation(n_trials=20, view=False):
@@ -104,25 +119,25 @@ def test_friction(view=False):
     successes = []
     for _ in range(20):
         for reset_pos, expected in zip(
-            [
-                [0.5, 0.],
-                [0.5, 0.1],
-                [0.5, -0.1]
-            ],
-            [
                 [
-                    -0.5, 0., 0.14, -0.75723034, -0.00260414,
-                    0.64451677, 0.9986539, 0.00936635, -0.00884138, 0.05024423
+                    [0.5, 0.],
+                    [0.5, 0.1],
+                    [0.5, -0.1]
                 ],
                 [
-                    -0.5, 0.1, 0.14, -0.68895733, -0.07530067,
-                    0.64443678, 0.94599276, 0.01166595, -0.0064683, 0.32391319
-                ],
-                [
-                    -0.5, -0.1, 0.14, -0.66184765, 0.10549879,
-                    0.64465803, 0.94096258, 0.00520798, -0.0121258, -0.33825325
+                    [
+                        -0.5, 0., 0.14, -0.75723034, -0.00260414,
+                        0.64451677, 0.9986539, 0.00936635, -0.00884138, 0.05024423
+                    ],
+                    [
+                        -0.5, 0.1, 0.14, -0.68895733, -0.07530067,
+                        0.64443678, 0.94599276, 0.01166595, -0.0064683, 0.32391319
+                    ],
+                    [
+                        -0.5, -0.1, 0.14, -0.66184765, 0.10549879,
+                        0.64465803, 0.94096258, 0.00520798, -0.0121258, -0.33825325
+                    ]
                 ]
-            ]
         ):
             if view:
                 time.sleep(2)

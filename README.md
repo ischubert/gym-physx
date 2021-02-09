@@ -18,13 +18,13 @@ while not done:
     action = my_policy(obs[‘observation’], obs[‘desired_goal’])
     obs, reward, done, info = env.step(action)
 ```
-[`rai-python`](https://github.com/MarcToussaint/rai-python) is needed for the planning capabilities (see below). It is recommended to use the [`rai-python` Docker images](https://github.com/ischubert/rai-python/packages/). Alternatively, you can do the installation manually. Please see below for more details.
+[`rai-python`](https://github.com/ischubert/rai-python/tree/plan_conditioned_rl) is needed for the planning capabilities (see below). It is recommended to use the [`rai-python` Docker images](https://github.com/ischubert/rai-python/packages/). Alternatively, you can do the installation manually. Please see below for more details.
 
 ## Available Environments
 - PhysxPushing: (See title image): The name of the game is to push the black box towards the green goal position. The black sphere ("finger") is can be moved into x-,y-, and z-direction.
 
 ## Integrated Planning Module
-All environments contain planning modules that plan approximate manipulation sequences leading from the current state to a desired goal using k-order Markov optimization (KOMO), using Marc Toussaint's rai-python code https://github.com/MarcToussaint/rai-python.
+All environments contain planning modules that plan approximate manipulation sequences leading from the current state to a desired goal using k-order Markov optimization (KOMO), using Marc Toussaint's rai-python code https://github.com/ischubert/rai-python/tree/plan_conditioned_rl.
 
 The approximate plan is updated each time `env.reset()` is called. It can also be updated manually using `env._get_approximate_plan()`.
 
@@ -55,4 +55,4 @@ root@CONTAINER_ID:~/git/gym-physx$ pip install .
 ```
 
 ### Manual Installation
-Alternatively, install `rai-python` as detailed [here](https://github.com/MarcToussaint/rai-python). Configure PhysX=1 in `config.mk` before running `make`.
+Alternatively, install `rai-python` as detailed [here](https://github.com/ischubert/rai-python/tree/plan_conditioned_rl). Configure PhysX=1 in `config.mk` before running `make`.

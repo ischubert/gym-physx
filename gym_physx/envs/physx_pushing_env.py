@@ -96,8 +96,6 @@ class PhysxPushingEnv(gym.Env):
         self.maximum_rel_z_for_finger_in_config_coords = self.maximum_rel_z_for_finger + \
             self.config.frame('floor').getPosition()[2]
 
-        # TODO this seems to not work yet with the spinup implementation,
-        # does it work with the baslines implementation
         self.observation_space = gym.spaces.Dict(
             spaces={
                 "observation": gym.spaces.Box(
@@ -360,9 +358,8 @@ class PhysxPushingEnv(gym.Env):
             axis=0
         )
 
-        # TODO The following 2 postprocessing steps should
-        # TODO probably be done more efficiently in one
-        # TODO step. Time ist still negligible compared to KOMO optimization though
+        # TODO The following 2 postprocessing steps should probably be done more
+        # efficiently in one step. Time ist still negligible compared to KOMO though
         if self.densify_plans:
             for _ in range(10):
                 step_width_too_large = np.linalg.norm(
