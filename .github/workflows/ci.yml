@@ -25,7 +25,7 @@ jobs:
             if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
         - name: Build and install gym-physx
           run: |
-            pip install .
+            pip install .[testing]
         - name: Lint with flake8
           run: |
             flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
