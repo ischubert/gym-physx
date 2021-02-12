@@ -69,7 +69,6 @@ def show_plan(plan_in):
     show_view = show_env.render()
     return show_view
 
-
 # %%
 violations = []
 for _ in range(50):
@@ -95,5 +94,42 @@ for _ in range(50):
     print(
         ENV.komo.getReport()[-2:]
     )
+
+# %%
+plan_lengths = [50, 150, 200]
+envs = [
+    gym.make(
+        'gym_physx:physx-pushing-v0',
+        # using relaxed reward shaping only to enforce that the
+        # environment plans automatically
+        plan_based_shaping=PlanBasedShaping(shaping_mode='relaxed'),
+        plan_length=plan_length
+    )
+    for plan_length in plan_lengths
+]
+
+for _ in range(20):
+    finger_position = envs[0]._sample_finger_pos()
+    for __ in range(1000):
+        box_position = envs[0]._sample_box_position()
+        if envs[0]._box_finger_not_colliding(
+                finger_position,
+                box_position
+        ):
+            break
+    goal_position = envs[0]._sample_box_position()
+
+    for env, plan_length in zip(envs, plan_lengths):
+        plan = env._controlled_reset(
+            finger_position,
+            box_position,
+            goal_position
+        )['current_plan']
+
+        plt.plot(
+            plan[:, 0], plan[:, 1]
+        )
+    plt.legend(plan_lengths)
+    plt.show()
 
 # %%

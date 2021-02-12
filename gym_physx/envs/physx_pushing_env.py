@@ -33,7 +33,7 @@ class PhysxPushingEnv(gym.Env):
             target_tolerance=0.1,
             plan_max_stepwidth=0.05,
             densify_plans=True,
-            constant_length_plans=True,
+            plan_length=50,
             config_file=None,
             fps=None
     ):
@@ -45,7 +45,7 @@ class PhysxPushingEnv(gym.Env):
         self.target_tolerance = target_tolerance
         self.plan_max_stepwidth = plan_max_stepwidth
         self.densify_plans = densify_plans
-        self.constant_length_plans = constant_length_plans
+        self.plan_length = plan_length
         self.config_file = config_file
         self.fps = fps
 
@@ -185,9 +185,7 @@ class PhysxPushingEnv(gym.Env):
 
         return observation, reward, done, info
 
-    def reset(
-            self,
-    ):
+    def reset(self):
         """
         Reset the environment randomly
         """
@@ -376,13 +374,13 @@ class PhysxPushingEnv(gym.Env):
                     break
         plan[:, 2] = plan[:, 2]-self.config.frame('floor').getPosition()[2]
 
-        if self.constant_length_plans:
+        if self.plan_length is not None:
             plan = interp1d(
                 np.linspace(0, 1, len(plan)),
                 plan,
                 axis=0,
                 bounds_error=True
-            )(np.linspace(0, 1, 150))
+            )(np.linspace(0, 1, self.plan_length))
 
         return plan
 
