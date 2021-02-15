@@ -253,7 +253,7 @@ def test_planning_module():
             np.linalg.norm(
                 plan[1:] - plan[:-1],
                 axis=-1
-            ) <= np.sqrt(2)*env.plan_max_stepwidth
+            ) <= np.sqrt(2)*env.plan_max_stepwidth*150/env.plan_length
         )
 
 # %%
