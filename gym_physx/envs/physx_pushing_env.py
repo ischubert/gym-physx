@@ -54,9 +54,9 @@ class PhysxPushingEnv(gym.Env):
 
         self.skeleton = None
         self.komo = None
-        self.current_goal = None
-        self.current_plan = None
-        self.previous_state = None
+        self.current_desired_goal = None
+        self.current_achieved_goal = None
+        self.previous_achieved_goal = None
 
         self.config_file_default = os.path.join(
             os.path.dirname(__file__), 'config_data/pushing.g'
@@ -96,6 +96,78 @@ class PhysxPushingEnv(gym.Env):
         self.maximum_rel_z_for_finger_in_config_coords = self.maximum_rel_z_for_finger + \
             self.config.frame('floor').getPosition()[2]
 
+        self.plan_based_shaping.set_plan_len_and_dim(
+            plan_len=self.plan_length, plan_dim=json_config["subspace_for_shaping"]
+        )
+
+        if self.plan_based_shaping.shaping_mode is None:
+            # Without plan-based shaping, the desired goal
+            # is represented by the desired box position.
+            # The achieved goal is the observed box position.
+            desired_goal_space = gym.spaces.Box(
+                low=self.box_xy_min_reset*np.ones(2),
+                high=self.box_xy_max_reset*np.ones(2)
+            )
+            achieved_goal_space = gym.spaces.Box(
+                low=json_config["box_xy_min"]*np.ones(2),
+                high=json_config["box_xy_max"]*np.ones(2),
+            )
+
+        else:
+            # With plan-based shaping, the desired goal
+            # is represented by a plan. The plan is the intended
+            # 6D trajectory of both finger and box.
+            #
+            # The achieved goal is the 6D position of box and finger
+            #
+            # the plans are flattened and the entries are as follows:
+            # [
+            #   t=0: finger_x, t=0: finger_y, t=0: finger_z,
+            #   t=0: box_x, t=0: box_y, t=0: box_z,
+            #   t=1: finger_x, t=1: finger_y, t=1: finger_z,
+            #   t=1: box_x, t=1: box_y, t=1: box_z,
+            #   ...
+            #   t=plan_length-1: finger_x, t=plan_length-1: finger_y, t=plan_length-1: finger_z,
+            #   t=plan_length-1: box_x, t=plan_length-1: box_y, t=plan_length-1: box_z,
+            # ]
+            # TODO refactor this
+            desired_goal_space = gym.spaces.Box(
+                low=np.array(self.plan_length * [
+                    -self.maximum_xy_for_finger,
+                    -self.maximum_xy_for_finger,
+                    self.minimum_rel_z_for_finger-self.plan_max_stepwidth/2,
+                    json_config["box_xy_min"],
+                    json_config["box_xy_min"],
+                    0
+                ]),
+                high=np.array(self.plan_length * [
+                    self.maximum_xy_for_finger,
+                    self.maximum_xy_for_finger,
+                    self.maximum_rel_z_for_finger+self.plan_max_stepwidth/2,
+                    json_config["box_xy_max"],
+                    json_config["box_xy_max"],
+                    json_config["box_z_max"]
+                ])
+            )
+            achieved_goal_space = gym.spaces.Box(
+                low=np.array([
+                    -self.maximum_xy_for_finger,
+                    -self.maximum_xy_for_finger,
+                    self.minimum_rel_z_for_finger-self.plan_max_stepwidth/2,
+                    json_config["box_xy_min"],
+                    json_config["box_xy_min"],
+                    0
+                ]),
+                high=np.array([
+                    self.maximum_xy_for_finger,
+                    self.maximum_xy_for_finger,
+                    self.maximum_rel_z_for_finger+self.plan_max_stepwidth/2,
+                    json_config["box_xy_max"],
+                    json_config["box_xy_max"],
+                    json_config["box_z_max"]
+                ])
+            )
+
         self.observation_space = gym.spaces.Dict(
             spaces={
                 "observation": gym.spaces.Box(
@@ -118,19 +190,8 @@ class PhysxPushingEnv(gym.Env):
                         1, 1, 1, 1
                     ]),
                 ),
-                "desired_goal": gym.spaces.Box(
-                    low=self.box_xy_min_reset*np.ones(2),
-                    high=self.box_xy_max_reset*np.ones(2)
-                ),
-                "achieved_goal": gym.spaces.Box(
-                    low=json_config["box_xy_min"]*np.ones(2),
-                    high=json_config["box_xy_max"]*np.ones(2),
-                ),
-                # TODO update here, this is just a placeholder yet
-                "current_plan": gym.spaces.Box(
-                    low=json_config["box_xy_min"]*np.ones(2),
-                    high=json_config["box_xy_max"]*np.ones(2)
-                )
+                "desired_goal": desired_goal_space,
+                "achieved_goal": achieved_goal_space
             },
         )
 
@@ -145,7 +206,7 @@ class PhysxPushingEnv(gym.Env):
         """
         Simulate the system's transition under an action
         """
-        self.previous_state = self._get_state()
+        self.previous_achieved_goal = self.current_achieved_goal.copy()
         # clip action
         action = np.clip(
             action,
@@ -173,12 +234,18 @@ class PhysxPushingEnv(gym.Env):
             if self.fps is not None:
                 time.sleep(1/self.fps)
 
+        self._update_achieved_goal()
+
         observation = self._get_observation()
         reward = self._calculate_reward()
         done = False
         info = {
             "is_success": (np.linalg.norm(
-                self.config.frame('box').getPosition()[:2] - self.current_goal,
+                self.config.frame(
+                    'box'
+                ).getPosition()[:2] - self.config.frame(
+                    'target'
+                ).getPosition()[:2],
                 axis=-1
             ) < self.target_tolerance)
         }
@@ -213,6 +280,47 @@ class PhysxPushingEnv(gym.Env):
 
     def close(self):
         raise NotImplementedError
+
+    def compute_reward(
+            self,
+            achieved_goal,
+            desired_goal,
+            info,
+            previous_achieved_goal=None
+    ):
+        """
+        This method exposes the reward function in a way that is compatible with
+        the gym API for HER without plan-based reward shaping
+        (see https://openai.com/blog/ingredients-for-robotics-research/).
+        In addition, state current_plan can also be provided for plan-based reward
+        shaping (and has to be if shaping mode is not None).
+        Shaping mode potential_based also requires a previous_state
+        """
+        if self.plan_based_shaping.shaping_mode == 'potential_based':
+            assert previous_achieved_goal is not None
+
+        if self.plan_based_shaping.shaping_mode is None:
+            binary_reward = (np.linalg.norm(
+                achieved_goal[:, :] - desired_goal[:, :],
+                axis=-1
+            ) < self.target_tolerance).astype(float)
+        else:
+            binary_reward = (np.linalg.norm(
+                # TODO check that this really works (although testing suggests it does)
+                achieved_goal[:, -3:] - desired_goal.reshape(
+                    -1,
+                    self.plan_length,
+                    self.subspace_for_shaping
+                )[:, -1, -3:],
+                axis=-1
+            ) < self.target_tolerance).astype(float)
+
+        return self.plan_based_shaping.shaped_reward_function(
+            achieved_goal,
+            desired_goal,
+            binary_reward,
+            previous_achieved_goal=previous_achieved_goal
+        )
 
     def _get_approximate_plan(self):
         """
@@ -382,7 +490,7 @@ class PhysxPushingEnv(gym.Env):
                 bounds_error=True
             )(np.linspace(0, 1, self.plan_length))
 
-        return plan
+        return plan.reshape(-1)
 
     def _get_observation(self):
         """
@@ -391,70 +499,39 @@ class PhysxPushingEnv(gym.Env):
         """
         return {
             'observation': self._get_state(),
-            'achieved_goal': self.config.frame('box').getPosition()[:2].copy(),
-            'desired_goal': self.current_goal.copy(),
-            'current_plan': None if self.current_plan is None else self.current_plan.copy()
+            'achieved_goal': self.current_achieved_goal.copy(),
+            'desired_goal': self.current_desired_goal.copy()
         }
 
-    def compute_reward(
-            self,
-            achieved_goal,
-            desired_goal,
-            info,
-            state=None,
-            previous_state=None,
-            current_plan=None
-
-    ):
+    def _update_achieved_goal(self):
         """
-        This method exposes the reward function in a way that is compatible with
-        the gym API for HER without plan-based reward shaping
-        (see https://openai.com/blog/ingredients-for-robotics-research/).
-        In addition, state current_plan can also be provided for plan-based reward
-        shaping (and has to be if shaping mode is not None).
-        Shaping mode potential_based also requires a previous_state
+        Update the achieved goal using _get_state()
         """
-        if self.plan_based_shaping.shaping_mode is not None:
-            assert current_plan is not None
-            assert state is not None
-            state = state[:self.subspace_for_shaping]
-
-        if self.plan_based_shaping.shaping_mode == 'potential_based':
-            assert previous_state is not None
-            previous_state = previous_state[:self.subspace_for_shaping]
-
-        binary_reward = (np.linalg.norm(
-            achieved_goal - desired_goal,
-            axis=-1
-        ) < self.target_tolerance).astype(float)
-
-        return self.plan_based_shaping.shaped_reward_function(
-            state,
-            binary_reward,
-            current_plan,
-            previous_state=previous_state
-        )
+        if self.plan_based_shaping.shaping_mode is None:
+            self.current_achieved_goal = self.config.frame(
+                'box'
+            ).getPosition()[:2]
+        else:
+            self.current_achieved_goal = self._get_state()[
+                :self.subspace_for_shaping
+            ]
 
     def _calculate_reward(self):
         """
         Calculate reward (shaped or unshaped) for the last action
         """
-        achieved_goal = self.config.frame('box').getPosition()[:2].copy()
-        desired_goal = self.current_goal.copy()
 
-        # Previous state is only considered in potential_based mode
-        previous_state = None
+        # Previous achieved goal is only considered in potential_based mode
+        previous_achieved_goal = None
         if self.plan_based_shaping.shaping_mode == 'potential_based':
-            previous_state = self.previous_state
+            previous_achieved_goal = self.previous_achieved_goal.copy()[None, :]
 
-        return self.compute_reward(
-            achieved_goal,
-            desired_goal,
+        return float(self.compute_reward(
+            self.current_achieved_goal.copy()[None, :],
+            self.current_desired_goal.copy()[None, :],
             None,
-            state=self._get_state(),
-            previous_state=previous_state,
-            current_plan=self.current_plan
-        )
+            previous_achieved_goal=previous_achieved_goal
+        ))
 
     def _get_state(self):
         """
@@ -476,8 +553,7 @@ class PhysxPushingEnv(gym.Env):
         """
         Reset the environment to specific state
         """
-        self.previous_state = None
-        self.current_goal = goal_position.copy()
+        self.previous_achieved_goal = None
 
         assert self._box_finger_not_colliding(
             finger_position,
@@ -499,8 +575,12 @@ class PhysxPushingEnv(gym.Env):
             "target"
         )
 
-        if self.plan_based_shaping.shaping_mode is not None:
-            self.current_plan = self._get_approximate_plan()
+        self._update_achieved_goal()
+
+        if self.plan_based_shaping.shaping_mode is None:
+            self.current_desired_goal = np.array(goal_position.copy())
+        else:
+            self.current_desired_goal = self._get_approximate_plan()
 
         return self._get_observation()
 

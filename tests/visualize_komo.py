@@ -74,7 +74,7 @@ violations = []
 for _ in range(50):
     obs = ENV.reset()
 
-    plan = obs['current_plan']
+    plan = obs['desired_goal'].reshape(ENV.plan_length, ENV.subspace_for_shaping)
     ENV.komo.displayTrajectory()
 
     print(f'KOMO violations: {ENV.komo.getConstraintViolations()}')
@@ -124,7 +124,7 @@ for _ in range(20):
             finger_position,
             box_position,
             goal_position
-        )['current_plan']
+        )['desired_goal'].reshape(env.plan_length, env.subspace_for_shaping)
 
         plt.plot(
             plan[:, 0], plan[:, 1]

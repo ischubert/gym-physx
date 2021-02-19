@@ -7,12 +7,217 @@ import os
 import json
 import time
 import numpy as np
+import matplotlib.pyplot as plt
 import gym
 from stable_baselines3 import HER, DDPG, SAC, TD3
 from gym_physx.envs.shaping import PlanBasedShaping
 
 
-# %%
+def test_observations(view=False, n_trials=5):
+    """
+    Test the consistency of all observations
+    """
+
+    shaping_objects = [
+        PlanBasedShaping(shaping_mode=strategy, gamma=gamma)
+        for strategy, gamma in zip(
+            [None, 'relaxed', 'potential_based'],
+            [None, None, 0.9]
+        )
+    ]
+
+    with open(os.path.join(
+            os.path.dirname(__file__),
+            'expected_rewards.json'
+    ), 'r') as data:
+        expected_rewards = json.load(data)["expected_rewards"]
+
+    for shaping_object, expected_reward in zip(
+            shaping_objects,
+            expected_rewards
+    ):
+        for _ in range(n_trials):
+            env = gym.make(
+                'gym_physx:physx-pushing-v0',
+                plan_based_shaping=shaping_object
+            )
+            if view:
+                view = env.render()
+
+            states, achieved_goals, desired_goals, rewards, dones, infos = [], [], [], [], [], []
+
+            obs = env._controlled_reset(  # pylint: disable=protected-access
+                [-0.3, 0],
+                [-0.6, -0.6],
+                [0.6, 0.6]
+            )
+            states.append(obs["observation"])
+            achieved_goals.append(obs["achieved_goal"])
+            desired_goals.append(obs["desired_goal"])
+
+            actions = [
+                [-0.05, 0, 0],
+                [0, -0.05, 0],
+                [0.05, 0, 0],
+                [0, -0.05, 0],
+                [0.05, 0, 0],
+                [0, 0.05, 0],
+            ]
+            durations = [15, 13, 25, 5, 5, 26]
+
+            assert len(actions) == len(durations)
+            for action, duration in zip(actions, durations):
+                for time in range(duration):
+                    obs, reward, done, info = env.step(action)
+
+                    states.append(obs["observation"])
+                    achieved_goals.append(obs["achieved_goal"])
+                    desired_goals.append(obs["desired_goal"])
+                    rewards.append(reward)
+                    dones.append(done)
+                    infos.append(info)
+
+                    # This also checks for all subspaces
+                    assert env.observation_space.contains(obs)
+                    assert env.action_space.contains(action)
+
+                    if view and (time % 10 == 0 or duration-time < 3):
+                        fig = plt.figure()
+                        ax = fig.gca(projection='3d')
+                        ax.set_title("Dims 0 to 2")
+                        ax.plot(
+                            np.array(states)[:, 0],
+                            np.array(states)[:, 1],
+                            np.array(states)[:, 2],
+                            marker='v',
+                            label='states 0-2'
+                        )
+                        if shaping_object.shaping_mode is not None:
+                            ax.plot(
+                                np.array(achieved_goals)[:, 0],
+                                np.array(achieved_goals)[:, 1],
+                                np.array(achieved_goals)[:, 2],
+                                label='achieved goals 0-2'
+                            )
+                            ax.plot(
+                                np.array(desired_goals).reshape(
+                                    (-1, env.plan_length, env.subspace_for_shaping))[-1, :, 0],
+                                np.array(desired_goals).reshape(
+                                    (-1, env.plan_length, env.subspace_for_shaping))[-1, :, 1],
+                                np.array(desired_goals).reshape(
+                                    (-1, env.plan_length, env.subspace_for_shaping))[-1, :, 2],
+                                label='latest plan 0-2'
+                            )
+                        ax.legend()
+                        plt.show()
+                        plt.show()
+
+                        fig = plt.figure()
+                        ax = fig.gca(projection='3d')
+                        ax.set_title("Dims 3 to 5")
+                        ax.plot(
+                            np.array(states)[:, 3],
+                            np.array(states)[:, 4],
+                            np.array(states)[:, 5],
+                            marker='v',
+                            label='states 3-5'
+                        )
+                        if shaping_object.shaping_mode is not None:
+                            ax.plot(
+                                np.array(achieved_goals)[:, 3],
+                                np.array(achieved_goals)[:, 4],
+                                np.array(achieved_goals)[:, 5],
+                                label='achieved goals 3-5',
+                            )
+                            ax.plot(
+                                np.array(desired_goals).reshape(
+                                    (-1, env.plan_length, env.subspace_for_shaping))[-1, :, 3],
+                                np.array(desired_goals).reshape(
+                                    (-1, env.plan_length, env.subspace_for_shaping))[-1, :, 4],
+                                np.array(desired_goals).reshape(
+                                    (-1, env.plan_length, env.subspace_for_shaping))[-1, :, 5],
+                                label='latest plan 3-5'
+                            )
+                        else:
+                            ax.plot(
+                                np.array(achieved_goals)[:, 0],
+                                np.array(achieved_goals)[:, 1],
+                                len(achieved_goals)*[0],
+                                label='achieved goals 0-1',
+                                marker='v'
+                            )
+                            ax.plot(
+                                np.array(desired_goals)[:, 0],
+                                np.array(desired_goals)[:, 1],
+                                len(desired_goals)*[0],
+                                marker='*',
+                                label='desired goals 0-1'
+                            )
+                        ax.legend()
+                        plt.show()
+
+                    assert len(np.array(states).shape) == 2
+                    assert np.array(states).shape[-1] == 10
+
+                    for desired_goal in desired_goals:
+                        assert np.all(desired_goals[0] == desired_goal)
+
+                    if shaping_object.shaping_mode is not None:
+                        assert len(np.array(achieved_goals).shape) == 2
+                        assert np.array(achieved_goals).shape[-1] == 6
+                        assert len(np.array(desired_goals).shape) == 2
+                        assert np.array(desired_goals).shape[-1] == 50*6
+
+                        assert np.all(np.array(states)[
+                            :, :6] == np.array(achieved_goals))
+                    else:
+                        assert len(np.array(achieved_goals).shape) == 2
+                        assert np.array(achieved_goals).shape[-1] == 2
+                        assert len(np.array(desired_goals).shape) == 2
+                        assert np.array(desired_goals).shape[-1] == 2
+
+                        assert np.all(np.array(states)[
+                            :, 3:5] == np.array(achieved_goals))
+
+                    if shaping_object.shaping_mode == "potential_based":
+                        previous_achieved_goals = np.array(achieved_goals)[:-1]
+                    else:
+                        previous_achieved_goals = None
+
+                    computed_rewards = env.compute_reward(
+                        np.array(achieved_goals)[1:],
+                        np.array(desired_goals)[1:],
+                        None,
+                        previous_achieved_goal=previous_achieved_goals
+                    )
+
+                    if view and (time % 10 == 0 or duration-time < 3):
+                        plt.plot(rewards, marker='1', markersize=20)
+                        plt.plot(computed_rewards, marker='2', markersize=20)
+                        plt.plot(expected_reward)
+                        plt.legend([
+                            'Collected rewards',
+                            'Computed Rewards',
+                            "Appr. Expected Rewards"
+                        ])
+                        plt.show()
+
+                    assert len(np.array(rewards).shape) == 1
+                    assert len(computed_rewards.shape) == 1
+                    assert computed_rewards.shape[0] == np.array(
+                        rewards).shape[0]
+                    assert np.all(computed_rewards == np.array(rewards))
+
+            assert len(np.array(expected_reward).shape) == 1
+            assert computed_rewards.shape[0] == np.array(
+                expected_reward).shape[0]
+            assert np.all(
+                np.abs(
+                    (np.array(expected_reward) - np.array(rewards))
+                ) < 5e-2
+            )
+
+
 def test_stable_baselines_her():
     """
     Test the gym API by running the stable_baselines3 HER implementation
@@ -41,7 +246,9 @@ def test_simulation(n_trials=20, view=False):
     """
     Test if the sequence of actions defined below
     indeed reaches the goal, and whether the rewards are
-    as expected in all 3 scenarios
+    as expected for all 3 shaping options.
+    Parts of this is redundant with test_observations(), but
+    redundancy does not hurt when testing.
     """
     shaping_objects = [
         PlanBasedShaping(shaping_mode=strategy, gamma=gamma)
@@ -99,7 +306,7 @@ def test_simulation(n_trials=20, view=False):
             assert np.all(
                 np.abs(
                     (np.array(expected_reward) - np.array(rewards))
-                ) < 1e-1
+                ) < 5e-2
             )
 
             assert np.all(
@@ -179,7 +386,7 @@ def test_reset():
         )
 
 
-def test_planning_module():
+def test_planning_module(n_trials=50):
     """
     Test whether the planning module returns feasible and dense
     plans with acceptable costs
@@ -195,16 +402,34 @@ def test_planning_module():
         "finger"
     ).getPosition()[2] - env.config.getJointState()[2]
 
-    for _ in range(50):
+    acceptable_costs_count = 0
+    for _ in range(n_trials):
         observation = env.reset()
-        plan = observation["current_plan"]
+        plan = observation["desired_goal"]
+
+        # Assert that the observation is included in observation space
+        assert env.observation_space.contains(observation)
+        # Should be already included in the assertion above
+        assert env.observation_space["desired_goal"].contains(plan)
+
+        # reshape plan into [time, dims]
+        plan = plan.reshape(env.plan_length, env.subspace_for_shaping)
+
+        # Make sure every line of the plan is included in achieved_goal space
+        for achieved_goal in plan:
+            assert env.observation_space["achieved_goal"].contains(
+                achieved_goal)
 
         # ensure acceptable costs
-        assert env.komo.getConstraintViolations() < 50
+        acceptable_costs_count += int(env.komo.getConstraintViolations() < 50)
 
         # ensure that initial state of the plan is consistent with env state
         assert np.all(np.abs(
             observation["observation"][:6] - plan[0]
+        ) < env.plan_max_stepwidth * 2)
+        # ensure that the initial state of the plan is consistent with achieved_goal
+        assert np.all(np.abs(
+            observation["achieved_goal"][:6] - plan[0]
         ) < env.plan_max_stepwidth * 2)
         # ensure initial plan state consistent with internal joint state...
         assert np.all(np.abs(
@@ -219,7 +444,7 @@ def test_planning_module():
             env.config.frame('target').getPosition() - plan[-1, 3:]
         ) < env.plan_max_stepwidth * 2)
 
-        # enusure that planned finger positions are within the env's limits
+        # enusure (again) that planned finger positions are within the env's limits
         assert all(np.abs(
             plan[:, :2]
         ).flatten() <= env.maximum_xy_for_finger)
@@ -255,5 +480,8 @@ def test_planning_module():
                 axis=-1
             ) <= np.sqrt(2)*env.plan_max_stepwidth*150/env.plan_length
         )
+
+    # At least 49 out of 50 plans have to have acceptable cost
+    assert acceptable_costs_count/n_trials >= 49/50
 
 # %%
