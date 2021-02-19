@@ -242,7 +242,7 @@ def test_stable_baselines_her():
         model.learn(2100)
 
 
-def test_simulation(n_trials=20, view=False):
+def test_simulation(n_trials=5, view=False):
     """
     Test if the sequence of actions defined below
     indeed reaches the goal, and whether the rewards are
@@ -481,7 +481,7 @@ def test_planning_module(n_trials=50):
             ) <= np.sqrt(2)*env.plan_max_stepwidth*150/env.plan_length
         )
 
-    # At least 49 out of 50 plans have to have acceptable cost
-    assert acceptable_costs_count/n_trials >= 49/50
+    # A certain amount of plans have to have acceptable cost
+    assert acceptable_costs_count/n_trials >= 48/50
 
 # %%
