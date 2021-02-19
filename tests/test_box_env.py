@@ -67,7 +67,7 @@ def test_observations(view=False, n_trials=5):
 
             assert len(actions) == len(durations)
             for action, duration in zip(actions, durations):
-                for time in range(duration):
+                for timestep in range(duration):
                     obs, reward, done, info = env.step(action)
 
                     states.append(obs["observation"])
@@ -81,11 +81,11 @@ def test_observations(view=False, n_trials=5):
                     assert env.observation_space.contains(obs)
                     assert env.action_space.contains(action)
 
-                    if view and (time % 10 == 0 or duration-time < 3):
+                    if view and (timestep % 10 == 0 or duration-timestep < 3):
                         fig = plt.figure()
-                        ax = fig.gca(projection='3d')
-                        ax.set_title("Dims 0 to 2")
-                        ax.plot(
+                        axis = fig.gca(projection='3d')
+                        axis.set_title("Dims 0 to 2")
+                        axis.plot(
                             np.array(states)[:, 0],
                             np.array(states)[:, 1],
                             np.array(states)[:, 2],
@@ -93,29 +93,29 @@ def test_observations(view=False, n_trials=5):
                             label='states 0-2'
                         )
                         if shaping_object.shaping_mode is not None:
-                            ax.plot(
+                            axis.plot(
                                 np.array(achieved_goals)[:, 0],
                                 np.array(achieved_goals)[:, 1],
                                 np.array(achieved_goals)[:, 2],
                                 label='achieved goals 0-2'
                             )
-                            ax.plot(
+                            axis.plot(
                                 np.array(desired_goals).reshape(
-                                    (-1, env.plan_length, env.subspace_for_shaping))[-1, :, 0],
+                                    (-1, env.plan_length, env.dim_plan))[-1, :, 0],
                                 np.array(desired_goals).reshape(
-                                    (-1, env.plan_length, env.subspace_for_shaping))[-1, :, 1],
+                                    (-1, env.plan_length, env.dim_plan))[-1, :, 1],
                                 np.array(desired_goals).reshape(
-                                    (-1, env.plan_length, env.subspace_for_shaping))[-1, :, 2],
+                                    (-1, env.plan_length, env.dim_plan))[-1, :, 2],
                                 label='latest plan 0-2'
                             )
-                        ax.legend()
+                        axis.legend()
                         plt.show()
                         plt.show()
 
                         fig = plt.figure()
-                        ax = fig.gca(projection='3d')
-                        ax.set_title("Dims 3 to 5")
-                        ax.plot(
+                        axis = fig.gca(projection='3d')
+                        axis.set_title("Dims 3 to 5")
+                        axis.plot(
                             np.array(states)[:, 3],
                             np.array(states)[:, 4],
                             np.array(states)[:, 5],
@@ -123,37 +123,37 @@ def test_observations(view=False, n_trials=5):
                             label='states 3-5'
                         )
                         if shaping_object.shaping_mode is not None:
-                            ax.plot(
+                            axis.plot(
                                 np.array(achieved_goals)[:, 3],
                                 np.array(achieved_goals)[:, 4],
                                 np.array(achieved_goals)[:, 5],
                                 label='achieved goals 3-5',
                             )
-                            ax.plot(
+                            axis.plot(
                                 np.array(desired_goals).reshape(
-                                    (-1, env.plan_length, env.subspace_for_shaping))[-1, :, 3],
+                                    (-1, env.plan_length, env.dim_plan))[-1, :, 3],
                                 np.array(desired_goals).reshape(
-                                    (-1, env.plan_length, env.subspace_for_shaping))[-1, :, 4],
+                                    (-1, env.plan_length, env.dim_plan))[-1, :, 4],
                                 np.array(desired_goals).reshape(
-                                    (-1, env.plan_length, env.subspace_for_shaping))[-1, :, 5],
+                                    (-1, env.plan_length, env.dim_plan))[-1, :, 5],
                                 label='latest plan 3-5'
                             )
                         else:
-                            ax.plot(
+                            axis.plot(
                                 np.array(achieved_goals)[:, 0],
                                 np.array(achieved_goals)[:, 1],
                                 len(achieved_goals)*[0],
                                 label='achieved goals 0-1',
                                 marker='v'
                             )
-                            ax.plot(
+                            axis.plot(
                                 np.array(desired_goals)[:, 0],
                                 np.array(desired_goals)[:, 1],
                                 len(desired_goals)*[0],
                                 marker='*',
                                 label='desired goals 0-1'
                             )
-                        ax.legend()
+                        axis.legend()
                         plt.show()
 
                     assert len(np.array(states).shape) == 2
@@ -191,7 +191,7 @@ def test_observations(view=False, n_trials=5):
                         previous_achieved_goal=previous_achieved_goals
                     )
 
-                    if view and (time % 10 == 0 or duration-time < 3):
+                    if view and (timestep % 10 == 0 or duration-timestep < 3):
                         plt.plot(rewards, marker='1', markersize=20)
                         plt.plot(computed_rewards, marker='2', markersize=20)
                         plt.plot(expected_reward)
@@ -413,7 +413,7 @@ def test_planning_module(n_trials=50):
         assert env.observation_space["desired_goal"].contains(plan)
 
         # reshape plan into [time, dims]
-        plan = plan.reshape(env.plan_length, env.subspace_for_shaping)
+        plan = plan.reshape(env.plan_length, env.dim_plan)
 
         # Make sure every line of the plan is included in achieved_goal space
         for achieved_goal in plan:
@@ -478,7 +478,7 @@ def test_planning_module(n_trials=50):
             np.linalg.norm(
                 plan[1:] - plan[:-1],
                 axis=-1
-            ) <= np.sqrt(2)*env.plan_max_stepwidth*150/env.plan_length
+            ) <= 1.2 * np.sqrt(2)*env.plan_max_stepwidth*150/env.plan_length
         )
 
     # A certain amount of plans have to have acceptable cost

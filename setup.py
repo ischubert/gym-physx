@@ -11,7 +11,7 @@ setup(
     version='0.0.1',
     author="Ingmar Schubert",
     author_email="mail@ingmarschubert.com",
-    description="OpenAI-Gym Robotics Manipulation Environment Based on PhysX Simulator and KOMO planning",
+    description="OpenAI-Gym Robotics Manipulation Env Based on PhysX Simulator and KOMO planning",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/ischubert/gym-physx",

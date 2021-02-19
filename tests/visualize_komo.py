@@ -23,6 +23,8 @@ ENV = gym.make(
 VIEW = ENV.render()
 
 # %%
+
+
 def show_plan(plan_in):
     """
     show KOMO plan
@@ -69,12 +71,14 @@ def show_plan(plan_in):
     show_view = show_env.render()
     return show_view
 
+
 # %%
 violations = []
 for _ in range(50):
     obs = ENV.reset()
 
-    plan = obs['desired_goal'].reshape(ENV.plan_length, ENV.subspace_for_shaping)
+    plan = obs['desired_goal'].reshape(
+        ENV.plan_length, ENV.subspace_for_shaping)
     ENV.komo.displayTrajectory()
 
     print(f'KOMO violations: {ENV.komo.getConstraintViolations()}')
@@ -109,18 +113,18 @@ envs = [
 ]
 
 for _ in range(20):
-    finger_position = envs[0]._sample_finger_pos()
+    finger_position = envs[0]._sample_finger_pos()  # pylint: disable=protected-access
     for __ in range(1000):
-        box_position = envs[0]._sample_box_position()
-        if envs[0]._box_finger_not_colliding(
+        box_position = envs[0]._sample_box_position()  # pylint: disable=protected-access
+        if envs[0]._box_finger_not_colliding(  # pylint: disable=protected-access
                 finger_position,
                 box_position
         ):
             break
-    goal_position = envs[0]._sample_box_position()
+    goal_position = envs[0]._sample_box_position()  # pylint: disable=protected-access
 
     for env, plan_length in zip(envs, plan_lengths):
-        plan = env._controlled_reset(
+        plan = env._controlled_reset(  # pylint: disable=protected-access
             finger_position,
             box_position,
             goal_position

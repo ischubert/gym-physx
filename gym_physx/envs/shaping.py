@@ -47,7 +47,6 @@ class PlanBasedShaping():
         self.plan_len = plan_len
         self.plan_dim = plan_dim
 
-
     def shaped_reward_function(
             self,
             achieved_goal,
@@ -59,16 +58,18 @@ class PlanBasedShaping():
         Get shaped reward function from the reward given by the
         FetchPush-v1 environment
         """
-
+        # If no reward shaping is used, binary reward is returned without modification
         if self.shaping_mode is None:
             return reward
 
+        # If reward shaping is used, make sure that plan_len and plan_dim has been specified
         assert (
             self.plan_len is not None
         ) and (
             self.plan_dim is not None
         ), "Please use set_plan_len_and_dim() to initialize PlanBasedShaping"
 
+        # Potential-based reward shaping
         if self.shaping_mode == 'potential_based':
             assert previous_achieved_goal is not None
             assert self.gamma is not None
@@ -82,6 +83,7 @@ class PlanBasedShaping():
                 )
             )
 
+        # Relaxed reward shaping
         if self.shaping_mode == 'relaxed':
             mask = np.logical_not(reward == 1)
             reward[mask] = reward[mask] + self.plan_based_reward(
@@ -96,10 +98,13 @@ class PlanBasedShaping():
         how far advanced in the plan the corresponding state is
         """
 
-        # TODO double check that this is always correct
+        # Reshape the plan into [batch, time, dim]
         desired_goal = desired_goal.reshape(-1, self.plan_len, self.plan_dim)
 
+        # gaussian distance function
         if self.potential_function == 'gaussian':
+            # for each sample, calculate exponential distances of achieved_goal to
+            # desired_goal at each timestep
             exponential_dists = np.exp(
                 -np.linalg.norm(
                     achieved_goal[:, None, :] - desired_goal[:, :, :],
@@ -107,14 +112,17 @@ class PlanBasedShaping():
                 )**2/2/self.width**2
             )
 
-            smallest_dist = np.argmax(exponential_dists, axis=-1)
+            # calculate time of smallest (exp.) distance for each sample
+            ind_smallest_dist = np.argmax(exponential_dists, axis=-1)
             return 0.5 * exponential_dists[
-                np.arange(len(exponential_dists)), smallest_dist
-            ] * smallest_dist/self.plan_len
+                np.arange(len(exponential_dists)), ind_smallest_dist
+            ] * ind_smallest_dist/self.plan_len
 
+        # box distance function
         if self.potential_function == 'box_distance':
-            # simply use the negative box distance in this case,
-            # ignoring the plan!
+            # simply use the negative box distance to
+            # its desired box position in this case,
+            # ignoring the rest of the plan!
             return -np.linalg.norm(
                 desired_goal[:, -1, 3:] - achieved_goal[:, 3:]
             )
