@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 import gym
 from stable_baselines3 import HER, DDPG, SAC, TD3
 from gym_physx.envs.shaping import PlanBasedShaping
+from gym_physx.wrappers import DesiredGoalEncoder
 
 
 def test_observations(view=False, n_trials=5):
@@ -218,7 +219,7 @@ def test_observations(view=False, n_trials=5):
             )
 
 
-def test_stable_baselines_her():
+def test_stable_baselines_her(view=False):
     """
     Test the gym API by running the stable_baselines3 HER implementation
     https://github.com/DLR-RM/stable-baselines3 as reference.
