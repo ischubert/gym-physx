@@ -71,7 +71,7 @@ class PhysxPushingEnv(gym.Env):
         self.finger_relative_level = json_config["finger_relative_level"]
         self.collision_distance = json_config["collision_distance"]
         # reset configuration
-        self.reset_finger_xy_min = json_config["reset_finger_xy_max"]
+        self.reset_finger_xy_min = json_config["reset_finger_xy_min"]
         self.reset_finger_xy_max = json_config["reset_finger_xy_max"]
         self.reset_box_xy_min = json_config["reset_box_xy_min"]
         self.reset_box_xy_max = json_config["reset_box_xy_max"]
