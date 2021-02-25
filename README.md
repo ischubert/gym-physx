@@ -53,6 +53,7 @@ root@CONTAINER_ID:~/git$ git clone git@github.com:ischubert/gym-physx.git
 root@CONTAINER_ID:~/git$ cd gym-physx
 root@CONTAINER_ID:~/git/gym-physx$ pip install .
 ```
+The `rai-python` Docker images are public, but github will ask you to log in before being able to pull the image from the registry.
 
 ### Manual Installation
 Alternatively, install `rai-python` as detailed [here](https://github.com/ischubert/rai-python/tree/plan_conditioned_rl). Configure PhysX=1 in `config.mk` before running `make`.
