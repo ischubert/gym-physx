@@ -20,8 +20,9 @@ def test_toy_wrapper():
     assert len(env.observation_space.sample()["desired_goal"]) == 300
     observation = env.reset()
     assert len(observation["desired_goal"]) == 300
-    observation, _, _, _ = env.step(env.action_space.sample())
+    observation, _, _, info = env.step(env.action_space.sample())
     assert len(observation["desired_goal"]) == 300
+    assert "original_plan" not in info
 
     encoder = ToyEncoder()
     env = DesiredGoalEncoder(env, encoder)
@@ -29,7 +30,8 @@ def test_toy_wrapper():
     assert len(env.observation_space.sample()["desired_goal"]) == 5
     observation = env.reset()
     assert len(observation["desired_goal"]) == 5
-    observation, _, _, _ = env.step(env.action_space.sample())
+    observation, _, _, info = env.step(env.action_space.sample())
     assert len(observation["desired_goal"]) == 5
+    assert len(info["original_plan"]) == 300
 
 # %%

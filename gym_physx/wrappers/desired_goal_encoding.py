@@ -17,6 +17,7 @@ class DesiredGoalEncoder(gym.Wrapper):
 
     def step(self, action):
         observation, reward, done, info = self.env.step(action)
+        info["original_plan"] = observation["desired_goal"].copy()
         observation["desired_goal"] = self.encoder.encode(
             observation["desired_goal"]
         )

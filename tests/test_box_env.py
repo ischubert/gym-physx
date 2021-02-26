@@ -11,7 +11,6 @@ import matplotlib.pyplot as plt
 import gym
 from stable_baselines3 import HER, DDPG, SAC, TD3
 from gym_physx.envs.shaping import PlanBasedShaping
-from gym_physx.wrappers import DesiredGoalEncoder
 
 
 def test_observations(view=False, n_trials=5):

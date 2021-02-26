@@ -305,6 +305,12 @@ class PhysxPushingEnv(gym.Env):
         # If reward shaping is used, the desired box position is encoded in the last
         # step of the plan (i.e. desired_goal)
         else:
+            # If the plan has been modified, recover the original plan
+            # and use it for shaping
+            if info is not None:
+                if "original_plan" in info[0]:
+                    desired_goal = np.array([ele["original_plan"] for ele in info]).copy()
+
             binary_reward = (np.linalg.norm(
                 achieved_goal[:, -3:] - desired_goal.reshape(
                     -1,
