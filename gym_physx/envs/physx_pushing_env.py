@@ -33,6 +33,7 @@ class PhysxPushingEnv(gym.Env):
             plan_max_stepwidth=0.05,
             densify_plans=True,
             plan_length=50,
+            fixed_initial_config=None,
             fps=None,
             config_file=None
     ):
@@ -44,6 +45,7 @@ class PhysxPushingEnv(gym.Env):
         self.plan_max_stepwidth = plan_max_stepwidth
         self.densify_plans = densify_plans
         self.plan_length = plan_length
+        self.fixed_initial_config = fixed_initial_config
         self.fps = fps
         self.config_file = config_file
 
@@ -55,10 +57,19 @@ class PhysxPushingEnv(gym.Env):
         self.current_desired_goal = None
         self.current_achieved_goal = None
         self.previous_achieved_goal = None
+        self.static_plan = None
 
         self.config_file_default = os.path.join(
             os.path.dirname(__file__), 'config_data/pushing.g'
         )
+
+        if self.fixed_initial_config is not None:
+            for key in ['finger_position', 'box_position', 'goal_position']:
+                assert key in self.fixed_initial_config, f"fixed_initial_config was set but {key} is missing"
+            if "static_plan" in self.fixed_initial_config:
+                print("Fixed initial config: Using given static plan")
+            else:
+                print("Fixed initial config: Automatically create static plan")
 
         # Read in config file
         with open(os.path.join(
@@ -102,7 +113,29 @@ class PhysxPushingEnv(gym.Env):
         self.maximum_rel_z_for_finger_in_config_coords = self.maximum_rel_z_for_finger + \
             self.config.frame('floor').getPosition()[2]
 
-        # Define observation space and action space
+        # Define state space
+        state_space = gym.spaces.Box(
+            low=np.array([
+                -self.maximum_xy_for_finger,
+                -self.maximum_xy_for_finger,
+                self.minimum_rel_z_for_finger,
+                json_config["box_xy_min"],
+                json_config["box_xy_min"],
+                0,
+                -1, -1, -1, -1
+            ]),
+            high=np.array([
+                self.maximum_xy_for_finger,
+                self.maximum_xy_for_finger,
+                self.maximum_rel_z_for_finger,
+                json_config["box_xy_max"],
+                json_config["box_xy_max"],
+                json_config["box_z_max"],
+                1, 1, 1, 1
+            ]),
+        )
+
+        # Define observation space
         if self.plan_based_shaping.shaping_mode is None:
             # Without plan-based shaping, the desired goal
             # is represented by the desired box position.
@@ -158,33 +191,19 @@ class PhysxPushingEnv(gym.Env):
                 high=np.array(achieved_goal_space_high)
             )
 
-        self.observation_space = gym.spaces.Dict(
-            spaces={
-                "observation": gym.spaces.Box(
-                    low=np.array([
-                        -self.maximum_xy_for_finger,
-                        -self.maximum_xy_for_finger,
-                        self.minimum_rel_z_for_finger,
-                        json_config["box_xy_min"],
-                        json_config["box_xy_min"],
-                        0,
-                        -1, -1, -1, -1
-                    ]),
-                    high=np.array([
-                        self.maximum_xy_for_finger,
-                        self.maximum_xy_for_finger,
-                        self.maximum_rel_z_for_finger,
-                        json_config["box_xy_max"],
-                        json_config["box_xy_max"],
-                        json_config["box_z_max"],
-                        1, 1, 1, 1
-                    ]),
-                ),
-                "desired_goal": desired_goal_space,
-                "achieved_goal": achieved_goal_space
-            },
-        )
+        if self.fixed_initial_config is None:
+            self.observation_space = gym.spaces.Dict(
+                spaces={
+                    "observation": state_space,
+                    "desired_goal": desired_goal_space,
+                    "achieved_goal": achieved_goal_space
+                },
+            )
+        else:
+            # In this case, the env is not goal-conditioned
+            self.observation_space = state_space
 
+        # Define action space
         self.action_space = gym.spaces.Box(
             low=-self.max_action*np.ones(3),
             high=+self.max_action*np.ones(3)
@@ -250,16 +269,21 @@ class PhysxPushingEnv(gym.Env):
         """
         Reset the environment randomly
         """
-        # Sample a finger position and an allowed box position
-        finger_position = self._sample_finger_pos()
-        for _ in range(1000):
-            box_position = self._sample_box_position()
-            if self._box_finger_not_colliding(
-                    finger_position,
-                    box_position
-            ):
-                break
-        goal_position = self._sample_box_position()
+        if self.fixed_initial_config is None:
+            # Sample a finger position and an allowed box position
+            finger_position = self._sample_finger_pos()
+            for _ in range(1000):
+                box_position = self._sample_box_position()
+                if self._box_finger_not_colliding(
+                        finger_position,
+                        box_position
+                ):
+                    break
+            goal_position = self._sample_box_position()
+        else:
+            finger_position = self.fixed_initial_config["finger_position"]
+            box_position = self.fixed_initial_config["box_position"]
+            goal_position = self.fixed_initial_config["goal_position"]
 
         return self._controlled_reset(
             finger_position,
@@ -280,7 +304,7 @@ class PhysxPushingEnv(gym.Env):
             self,
             achieved_goal,
             desired_goal,
-            info,  # pylint: disable=unused-argument
+            info,
             previous_achieved_goal=None
     ):
         """
@@ -501,11 +525,14 @@ class PhysxPushingEnv(gym.Env):
         """
         Returns current observation.
         """
-        return {
-            'observation': self._get_state(),
-            'achieved_goal': self.current_achieved_goal.copy(),
-            'desired_goal': self.current_desired_goal.copy()
-        }
+        if self.fixed_initial_config is None:
+            return {
+                'observation': self._get_state(),
+                'achieved_goal': self.current_achieved_goal.copy(),
+                'desired_goal': self.current_desired_goal.copy()
+            }
+        else:
+            return self._get_state()
 
     def _update_achieved_goal(self):
         """
@@ -590,7 +617,19 @@ class PhysxPushingEnv(gym.Env):
         if self.plan_based_shaping.shaping_mode is None:
             self.current_desired_goal = np.array(goal_position.copy())
         else:
-            self.current_desired_goal = self._get_approximate_plan()
+            if self.fixed_initial_config is None:
+                self.current_desired_goal = self._get_approximate_plan()
+            else:
+                # create self.static plan if it has not been initialized
+                if self.static_plan is None:
+                    if 'static_plan' in self.fixed_initial_config:
+                        # the plan can be given by the user...
+                        self.static_plan = self.fixed_initial_config["static_plan"]
+                    else:
+                        # ...or it can be calculated automatically
+                        self.static_plan = self._get_approximate_plan()
+
+                self.current_desired_goal = self.static_plan.copy()
 
         return self._get_observation()
 

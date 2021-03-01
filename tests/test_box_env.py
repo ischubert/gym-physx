@@ -8,6 +8,7 @@ import json
 import time
 import numpy as np
 import matplotlib.pyplot as plt
+import pytest
 import gym
 from stable_baselines3 import HER, DDPG, SAC, TD3
 from gym_physx.envs.shaping import PlanBasedShaping
@@ -218,7 +219,7 @@ def test_observations(view=False, n_trials=5):
             )
 
 
-def test_stable_baselines_her(view=False):
+def test_stable_baselines_her():
     """
     Test the gym API by running the stable_baselines3 HER implementation
     https://github.com/DLR-RM/stable-baselines3 as reference.
@@ -483,5 +484,143 @@ def test_planning_module(n_trials=50):
 
     # A certain amount of plans have to have acceptable cost
     assert acceptable_costs_count/n_trials >= 48/50
+
+with open(
+        os.path.join(os.path.dirname(__file__), 'fixed_reset.json'),
+        'r'
+) as infile:
+    fixed_reset_data = json.load(infile)
+
+@pytest.mark.parametrize("n_episodes", [5])
+@pytest.mark.parametrize(
+    "shaping_object",
+    [
+        PlanBasedShaping(shaping_mode=strategy, gamma=gamma)
+        for strategy, gamma in zip(
+            [None, 'relaxed', 'potential_based'],
+            [None, None, 0.9]
+        )
+    ]
+)
+@pytest.mark.parametrize(
+    "fixed_initial_config",
+    [
+        None,
+        {
+            'finger_position': [-0.8, -0.1],
+            'box_position': [-0.5, 0.],
+            'goal_position': [0.5, 0.]
+        },
+        {
+            'finger_position': [-0.8, -0.1],
+            'box_position': [-0.5, 0.],
+            'goal_position': [0.5, 0.],
+            'static_plan': np.array(fixed_reset_data['reference_plan'])
+        },
+    ]
+)
+def test_fixed_initial_config(n_episodes, shaping_object, fixed_initial_config):
+    """
+    Test setting in which the environment is reset to the same config
+    (i.e. same finger+box position and same goal) after each reset
+    """
+    assert shaping_object.shaping_mode in [None, 'relaxed', 'potential_based']
+    env = gym.make(
+        'gym_physx:physx-pushing-v0',
+        plan_based_shaping=shaping_object,
+        fixed_initial_config=fixed_initial_config
+    )
+
+    if fixed_initial_config is None:
+        assert not isinstance(env.observation_space, gym.spaces.Box)
+        assert isinstance(env.observation_space, gym.spaces.Dict)
+    else:
+        assert isinstance(env.observation_space, gym.spaces.Box)
+        assert not isinstance(env.observation_space, gym.spaces.Dict)
+
+    for _ in range(n_episodes):
+        obs = env.reset()
+        collected_rewards = []
+        desired_goals = []
+        achieved_goals = []
+
+        for __ in range(21):
+            assert env.observation_space.contains(obs)
+
+            if fixed_initial_config is None:
+                assert obs['observation'].shape == (10,)
+                if shaping_object.shaping_mode is not None:
+                    assert obs['achieved_goal'].shape == (6,)
+                    assert obs['desired_goal'].shape == (300,)
+                else:
+                    assert obs['achieved_goal'].shape == (2,)
+                    assert obs['desired_goal'].shape == (2,)
+            else:
+                assert obs.shape == (10,)
+                if shaping_object.shaping_mode is None:
+                    assert env.current_desired_goal.shape == (2,)
+                    assert np.all(env.current_desired_goal ==
+                                  fixed_initial_config["goal_position"])
+                else:
+                    assert env.current_desired_goal.shape == (300,)
+                    assert np.all(env.current_desired_goal == env.static_plan)
+                    if 'static_plan' in fixed_initial_config:
+                        # In this case env.static_plan has to be strictly equal to the reference
+                        assert np.all(env.static_plan ==
+                                      fixed_initial_config['static_plan'])
+                        assert np.all(env.static_plan == np.array(
+                            fixed_reset_data['reference_plan']))
+                        assert np.all(env.current_desired_goal == np.array(
+                            fixed_reset_data['reference_plan']))
+                    else:
+                        # In this case the equality only is approximate
+                        # (limited by the accuracy of the planner)
+                        assert np.mean(
+                            np.abs(env.static_plan -
+                                   np.array(fixed_reset_data['reference_plan']))
+                        ) < 5e-3
+
+            obs, reward, _, _ = env.step([0.05, 0, 0])
+
+            collected_rewards.append(reward)
+            desired_goals.append(env.current_desired_goal)
+            achieved_goals.append(env.current_achieved_goal)
+
+        reference_rewards = np.array(
+            fixed_reset_data[str(shaping_object.shaping_mode)])
+        if shaping_object.shaping_mode == 'potential_based':
+            reference_rewards = reference_rewards[1:]
+            collected_rewards = collected_rewards[1:]
+            computed_rewards = env.compute_reward(
+                np.array(achieved_goals)[1:],
+                np.array(desired_goals)[1:],
+                None,
+                previous_achieved_goal=np.array(achieved_goals)[:-1]
+            )
+        else:
+            computed_rewards = env.compute_reward(
+                np.array(achieved_goals),
+                np.array(desired_goals),
+                None
+            )
+
+        # Computed rewards have to be strictly consistent
+        assert np.all(np.array(collected_rewards) == computed_rewards)
+
+        if fixed_initial_config is not None:
+            # Reference rewards have to be
+            if 'static_plan' in fixed_initial_config:
+                # ..striclty consistent if the reference plan was used
+                if shaping_object.shaping_mode is not None:
+                    assert np.all(
+                        env.current_desired_goal == np.array(
+                            fixed_initial_config['static_plan'])
+                    )
+                assert np.all(np.array(collected_rewards) == reference_rewards)
+
+            # ...appr. consistent if the plan was re-computed
+            assert np.mean(
+                np.abs(np.array(collected_rewards) - reference_rewards)
+            ) < 5e-3
 
 # %%
