@@ -593,7 +593,7 @@ class PhysxPushingEnv(gym.Env):
         assert self._box_finger_not_colliding(
             finger_position,
             box_position
-        )
+        ),"Invalid reset position: Finger and Box are colliding"
 
         # Set rai config
         joint_q = np.array([
