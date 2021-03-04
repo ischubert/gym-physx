@@ -482,7 +482,12 @@ class PhysxPushingEnv(gym.Env):
             ], order=0
         )
         self.komo.setupConfigurations()
-        self.komo.optimize()
+        while True:
+            try:
+                self.komo.optimize()
+                break
+            except RuntimeError:
+                pass
 
         plan = np.concatenate(
             (
