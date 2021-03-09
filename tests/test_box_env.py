@@ -14,6 +14,7 @@ from stable_baselines3 import HER, DDPG, SAC, TD3
 from gym_physx.envs.shaping import PlanBasedShaping
 
 
+
 def test_observations(view=False, n_trials=5):
     """
     Test the consistency of all observations
@@ -237,7 +238,8 @@ def test_stable_baselines_her():
             'MlpPolicy',
             env,
             model_class,
-            verbose=1
+            verbose=1,
+            device='cpu'
         )
 
         model.learn(2100)
