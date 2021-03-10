@@ -4,6 +4,7 @@ Tests for the PhysxPushingEnv
 """
 
 import os
+import glob
 import json
 import time
 import numpy as np
@@ -12,8 +13,73 @@ import pytest
 import gym
 from stable_baselines3 import HER, DDPG, SAC, TD3
 from gym_physx.envs.shaping import PlanBasedShaping
+from gym_physx.generators.plan_generator import PlanFromDiskGenerator
 
+@pytest.mark.parametrize("n_trials", [20])
+def test_plan_generator_from_file(n_trials):
+    """
+    Test the plan generator class that provides plans
+    loaded from the disk
+    """
+    # load test files
+    data_path = os.path.join(os.path.dirname(__file__), 'test_plans')
+    files = glob.glob(
+        os.path.join(
+            data_path,
+            "plans_*.pkl"
+        )
+    )
+    # generate generator object
+    num_plans_per_file = 1000
+    plan_dim = 6
+    plan_len = 50
+    generator = PlanFromDiskGenerator(
+        files,
+        num_plans_per_file,
+        plan_dim,
+        plan_len,
+        flattened=False
+    )
 
+    # Assert that files are in the expected format
+    generator.test_consistency()
+
+    env_gen = gym.make(
+        'gym_physx:physx-pushing-v0',
+        plan_based_shaping=PlanBasedShaping(shaping_mode='relaxed'),
+        fixed_initial_config=None,
+        plan_generator=generator
+    )
+
+    env_plan = gym.make(
+        'gym_physx:physx-pushing-v0',
+        plan_based_shaping=PlanBasedShaping(shaping_mode='relaxed'),
+        fixed_initial_config=None,
+        plan_generator=None
+    )
+
+    trials = []
+    for _ in range(n_trials):
+        obs_gen = env_gen.reset()
+
+        plan_gen = obs_gen['desired_goal'].reshape(generator.plan_len, generator.plan_dim)
+        finger_position = plan_gen[0, :2]
+        box_position = plan_gen[0, 3:5]
+        goal_position = plan_gen[-1, 3:5]
+
+        obs_plan = env_plan._controlled_reset(
+            finger_position,
+            box_position,
+            goal_position
+        )
+
+        trials.append(
+            np.mean(
+                np.abs(obs_gen['desired_goal'] - obs_plan['desired_goal'])
+            ) < 0.05
+        )
+
+    assert np.mean(trials) > 0.9
 
 def test_observations(view=False, n_trials=5):
     """

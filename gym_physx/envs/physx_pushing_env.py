@@ -34,6 +34,7 @@ class PhysxPushingEnv(gym.Env):
             densify_plans=True,
             plan_length=50,
             fixed_initial_config=None,
+            plan_generator=None,
             fps=None,
             config_file=None
     ):
@@ -46,6 +47,7 @@ class PhysxPushingEnv(gym.Env):
         self.densify_plans = densify_plans
         self.plan_length = plan_length
         self.fixed_initial_config = fixed_initial_config
+        self.plan_generator = plan_generator
         self.fps = fps
         self.config_file = config_file
 
@@ -95,6 +97,11 @@ class PhysxPushingEnv(gym.Env):
         self.plan_based_shaping.set_plan_len_and_dim(
             plan_len=self.plan_length, plan_dim=self.dim_plan
         )
+        # assert consistent plan size if plan_generator is given
+        if self.plan_generator is not None:
+            assert self.plan_generator.plan_dim == self.dim_plan, "plan_generator: wrong plan_dim"
+            assert self.plan_generator.plan_len == self.plan_length, "plan_generator: wrong plan_length"
+
         # rendering colors
         self.floor_color = np.array(json_config["floor_color"])
         self.finger_color = np.array(json_config["finger_color"])
@@ -271,24 +278,36 @@ class PhysxPushingEnv(gym.Env):
         """
         if self.fixed_initial_config is None:
             # Sample a finger position and an allowed box position
-            finger_position = self._sample_finger_pos()
-            for _ in range(1000):
-                box_position = self._sample_box_position()
-                if self._box_finger_not_colliding(
-                        finger_position,
-                        box_position
-                ):
-                    break
-            goal_position = self._sample_box_position()
+            if self.plan_generator is None:
+                finger_position = self._sample_finger_pos()
+                for _ in range(1000):
+                    box_position = self._sample_box_position()
+                    if self._box_finger_not_colliding(
+                            finger_position,
+                            box_position
+                    ):
+                        break
+                goal_position = self._sample_box_position()
+                precomputed_plan = None
+            else:
+                reset_data = self.plan_generator.sample()
+
+                finger_position = reset_data['finger_position']
+                box_position = reset_data['box_position']
+                goal_position = reset_data['goal_position']
+                precomputed_plan = reset_data['precomputed_plan']
+
         else:
             finger_position = self.fixed_initial_config["finger_position"]
             box_position = self.fixed_initial_config["box_position"]
             goal_position = self.fixed_initial_config["goal_position"]
+            precomputed_plan = None
 
         return self._controlled_reset(
             finger_position,
             box_position,
-            goal_position
+            goal_position,
+            precomputed_plan=precomputed_plan
         )
 
     def render(self, mode='human'):
@@ -333,7 +352,8 @@ class PhysxPushingEnv(gym.Env):
             # and use it for shaping
             if info is not None:
                 if "original_plan" in info[0]:
-                    desired_goal = np.array([ele["original_plan"] for ele in info]).copy()
+                    desired_goal = np.array(
+                        [ele["original_plan"] for ele in info]).copy()
 
             binary_reward = (np.linalg.norm(
                 achieved_goal[:, -3:] - desired_goal.reshape(
@@ -581,11 +601,13 @@ class PhysxPushingEnv(gym.Env):
             self,
             finger_position,
             box_position,
-            goal_position
+            goal_position,
+            precomputed_plan=None
     ):
         """
         Reset the environment to specific state
         """
+        # TODO runtime error when goal and initial box position too close
         # Reset previous_achieved_goal
         self.previous_achieved_goal = None
 
@@ -593,7 +615,7 @@ class PhysxPushingEnv(gym.Env):
         assert self._box_finger_not_colliding(
             finger_position,
             box_position
-        ),"Invalid reset position: Finger and Box are colliding"
+        ), "Invalid reset position: Finger and Box are colliding"
 
         # Set rai config
         joint_q = np.array([
@@ -618,7 +640,10 @@ class PhysxPushingEnv(gym.Env):
             self.current_desired_goal = np.array(goal_position.copy())
         else:
             if self.fixed_initial_config is None:
-                self.current_desired_goal = self._get_approximate_plan()
+                if precomputed_plan is None:
+                    self.current_desired_goal = self._get_approximate_plan()
+                else:
+                    self.current_desired_goal = precomputed_plan
             else:
                 # create self.static plan if it has not been initialized
                 if self.static_plan is None:
