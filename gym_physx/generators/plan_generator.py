@@ -10,14 +10,24 @@ class PlanFromDiskGenerator():
     Load precomputed plans from disk
     """
 
-    def __init__(self, file_list, num_plans_per_file, plan_dim, plan_len, flattened=True):
+    def __init__(
+            self,
+            file_list, num_plans_per_file, plan_dim, plan_len,
+            flattened=True, subset=None
+    ):
         self.file_list = file_list
         self.num_plans_per_file = num_plans_per_file
         self.plan_dim = plan_dim
         self.plan_len = plan_len
         self.flattened = flattened
+        self.subset = subset
 
-        self.size = len(self.file_list) * self.num_plans_per_file
+        if self.subset is None:
+            self.size = len(self.file_list) * self.num_plans_per_file
+        else:
+            for ele in self.subset:
+                assert ele in np.arange(len(self.file_list) * self.num_plans_per_file)
+            self.size = len(self.subset)
 
         print(f"PlanFromDiskGenerator uses {self.size} precomputed plans")
 
@@ -46,10 +56,16 @@ class PlanFromDiskGenerator():
         """
         Sample plan from disk
         """
-        if sampled_index is not None:
-            assert sampled_index < self.size, "sampled_index larger than number of saved plans"
+        if self.subset is None:
+            if sampled_index is not None:
+                assert sampled_index < self.size, "sampled_index larger than number of saved plans"
+            else:
+                sampled_index = np.random.randint(self.size)
         else:
-            sampled_index = np.random.randint(self.size)
+            if sampled_index is not None:
+                assert sampled_index in self.subset, "sampled_index not in self.subset"
+            else:
+                sampled_index = np.random.choice(self.subset)
 
         sampled_file = self.file_list[sampled_index//self.num_plans_per_file]
         sampled_index_in_file = sampled_index % self.num_plans_per_file

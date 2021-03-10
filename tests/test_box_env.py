@@ -67,19 +67,20 @@ def test_plan_generator_from_file(n_trials):
         box_position = plan_gen[0, 3:5]
         goal_position = plan_gen[-1, 3:5]
 
-        obs_plan = env_plan._controlled_reset(
+        obs_plan = env_plan._controlled_reset(  # pylint: disable=protected-access
             finger_position,
             box_position,
             goal_position
         )
 
+        # assert that the saved plan and the recomputed plan are approximately consistent
         trials.append(
             np.mean(
                 np.abs(obs_gen['desired_goal'] - obs_plan['desired_goal'])
             ) < 0.05
         )
 
-    assert np.mean(trials) > 0.9
+    assert np.mean(trials) >= 0.9
 
 def test_observations(view=False, n_trials=5):
     """
