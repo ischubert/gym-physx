@@ -6,6 +6,7 @@ Tests for the PhysxPushingEnv
 import os
 import glob
 import json
+import pickle
 import time
 import numpy as np
 import matplotlib.pyplot as plt
@@ -16,32 +17,49 @@ from gym_physx.envs.shaping import PlanBasedShaping
 from gym_physx.generators.plan_generator import PlanFromDiskGenerator
 
 @pytest.mark.parametrize("n_trials", [20])
-def test_plan_generator_from_file(n_trials):
+@pytest.mark.parametrize("from_disk", [True, False])
+def test_plan_generator_from_file(n_trials, from_disk):
     """
     Test the plan generator class that provides plans
     loaded from the disk
     """
     # load test files
     data_path = os.path.join(os.path.dirname(__file__), 'test_plans')
-    files = glob.glob(
-        os.path.join(
-            data_path,
-            "plans_*.pkl"
-        )
-    )
+
     # generate generator object
-    num_plans_per_file = 1000
     plan_dim = 6
     plan_len = 50
+
+    # either let generator load plans from disk
+    if from_disk:
+        file_list = glob.glob(
+            os.path.join(
+                data_path,
+                "plans_*.pkl"
+            )
+        )
+        num_plans_per_file = 1000
+        plan_array = None
+        flattened = False
+
+    # or load plans beforehand and provide it to the generator as object
+    else:
+        file_list = None
+        num_plans_per_file = None
+        with open(os.path.join(data_path, "buffered_plans.pkl"), 'rb') as data_stream:
+            plan_array = pickle.load(data_stream)
+        flattened = True
+
     generator = PlanFromDiskGenerator(
-        files,
-        num_plans_per_file,
         plan_dim,
         plan_len,
-        flattened=False
+        file_list=file_list,
+        num_plans_per_file=num_plans_per_file,
+        plan_array=plan_array,
+        flattened=flattened
     )
 
-    # Assert that files are in the expected format
+    # Assert (again; done in __init__() as well) that files are in the expected format
     generator.test_consistency()
 
     env_gen = gym.make(
