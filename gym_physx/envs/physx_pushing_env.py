@@ -35,6 +35,7 @@ class PhysxPushingEnv(gym.Env):
             plan_length=50,
             fixed_initial_config=None,
             plan_generator=None,
+            komo_plans=True,
             fps=None,
             config_file=None
     ):
@@ -48,6 +49,7 @@ class PhysxPushingEnv(gym.Env):
         self.plan_length = plan_length
         self.fixed_initial_config = fixed_initial_config
         self.plan_generator = plan_generator
+        self.komo_plans = komo_plans
         self.fps = fps
         self.config_file = config_file
 
@@ -373,6 +375,154 @@ class PhysxPushingEnv(gym.Env):
 
     def _get_approximate_plan(self):
         """
+        Calculate approximate plan
+        """
+
+        if self.komo_plans:
+            return self._get_komo_plan()
+        else:
+            return self._get_manhattan_plan()
+
+
+    def _get_manhattan_plan(self):
+        """
+        Calculate Manhattan-like plan using the current
+        state and target. This plan can not be directly executed
+        in the physx simulation.
+        """
+        # TODO I have to get these numbers from somewhere else
+        box_size = 0.4
+        finger_radius = 0.06
+        safe_finger_box_distance = 0.1
+        target_pos = self.config.frame(
+            'target'
+        ).getPosition()
+        box_pos = self.config.frame(
+            'box'
+        ).getPosition()
+        finger_pos = self.config.frame(
+            'finger'
+        ).getPosition()
+
+        waypoints = []
+
+        # 1st waypoint: initial pos
+        waypoints.append(np.array([
+            *finger_pos,
+            *box_pos,
+        ]))
+
+        # 2nd waypoint: initial pos with elevated finger pos
+        waypoints.append(np.array([
+            finger_pos[0], finger_pos[1], finger_pos[2] + 0.4,
+            *box_pos,
+        ]))
+
+        first_direction = np.argmax(
+            np.abs(target_pos - box_pos)
+        )
+        assert first_direction in [0, 1]
+        if first_direction == 0:
+            second_direction = 1
+        elif first_direction == 1:
+            second_direction = 0
+
+        # Offset vec for first contact
+        offset_vec = [0, 0]
+        offset_vec[first_direction] += (
+            box_size/2 + finger_radius
+        ) * np.sign(box_pos[first_direction] - target_pos[first_direction])
+
+        # 3rd waypoint: finger first touch, elevated
+        waypoints.append(np.array([
+            box_pos[0] + offset_vec[0],
+            box_pos[1] + offset_vec[1],
+            finger_pos[2] + 0.4,
+            *box_pos,
+        ]))
+
+        # 4th waypoint: finger first touch, ground level
+        waypoints.append(np.array([
+            box_pos[0] + offset_vec[0],
+            box_pos[1] + offset_vec[1],
+            finger_pos[2],
+            *box_pos,
+        ]))
+
+        # 5th waypoint: finger first touch at intermediate step, ground level
+        intermediate_box_pos = box_pos.copy()
+        intermediate_box_pos[first_direction] = target_pos[first_direction]
+        waypoints.append(np.array([
+            intermediate_box_pos[0] + offset_vec[0],
+            intermediate_box_pos[1] + offset_vec[1],
+            finger_pos[2],
+            *intermediate_box_pos,
+        ]))
+
+        # 6th waypoint: finger first touch at intermediate step, elevated
+        waypoints.append(np.array([
+            intermediate_box_pos[0] + offset_vec[0],
+            intermediate_box_pos[1] + offset_vec[1],
+            finger_pos[2] + 0.4,
+            *intermediate_box_pos,
+        ]))
+
+        # Offset vec for second contact
+        offset_vec = [0, 0]
+        offset_vec[second_direction] += (
+            box_size/2 + finger_radius
+        ) * np.sign(box_pos[second_direction] - target_pos[second_direction])
+
+        # 7th waypoint: finger second touch at intermediate step, elevated
+        waypoints.append(np.array([
+            intermediate_box_pos[0] + offset_vec[0],
+            intermediate_box_pos[1] + offset_vec[1],
+            finger_pos[2] + 0.4,
+            *intermediate_box_pos,
+        ]))
+
+        # 8th waypoint: finger second touch at intermediate step, ground level
+        waypoints.append(np.array([
+            intermediate_box_pos[0] + offset_vec[0],
+            intermediate_box_pos[1] + offset_vec[1],
+            finger_pos[2],
+            *intermediate_box_pos,
+        ]))
+
+        # 9th waypoint: finger second touch at goal, ground level
+        waypoints.append(np.array([
+            target_pos[0] + offset_vec[0],
+            target_pos[1] + offset_vec[1],
+            finger_pos[2],
+            *target_pos,
+        ]))
+
+        waypoints = np.array(waypoints)
+
+        distances = np.linalg.norm(
+            waypoints[1:] - waypoints[:-1],
+            axis=-1
+        )
+        distances = np.array([0] + list(distances))
+        cumulated_distance = np.cumsum(distances)
+
+        plan = interp1d(
+            cumulated_distance,
+            waypoints,
+            kind='linear',
+            axis=0
+        )(np.linspace(
+            cumulated_distance[0],
+            cumulated_distance[-1],
+            self.plan_length
+        ))
+
+        plan[:, 2] = plan[:, 2]-self.config.frame('floor').getPosition()[2]
+
+        return plan.reshape(-1)
+
+    def _get_komo_plan(self):
+        """
         Uses rai/KOMO to calculate plan using the current
         state and target. This plan is based on the differentiable
         physics model rai uses, and can not be directly executed
@@ -445,6 +595,8 @@ class PhysxPushingEnv(gym.Env):
         )/(
             box_target_dist+finger_box_dist-0.2
         )
+
+        assert no_contact_to_contact_ratio > 0
 
         # approximately calculate the total number of time steps needed
         num_steps = int(

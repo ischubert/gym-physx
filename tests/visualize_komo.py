@@ -18,13 +18,12 @@ ENV = gym.make(
     'gym_physx:physx-pushing-v0',
     # using relaxed reward shaping only to enforce that the
     # environment plans automatically
-    plan_based_shaping=PlanBasedShaping(shaping_mode='relaxed')
+    plan_based_shaping=PlanBasedShaping(shaping_mode='relaxed'),
+    komo_plans=False
 )
 VIEW = ENV.render()
 
 # %%
-
-
 def show_plan(plan_in):
     """
     show KOMO plan
@@ -63,6 +62,20 @@ def show_plan(plan_in):
         show_env.config.frame(
             str(ind)).setPosition(pos[:3] + show_env.config.frame('floor').getPosition())
 
+        show_env.config.addFrame(str(ind) + 'box')
+        show_env.config.frame(str(ind) + 'box').setShape(
+            ry.ST.box,
+            size=ENV.config.frame('box').info()['size']
+        )
+        show_env.config.frame(str(ind) + 'box').setColor(
+            np.append(
+                (len(plan_in)-ind)/len(plan_in)*np.array([1., 1., 1.]),
+                1.
+            )
+        )
+        show_env.config.frame(
+            str(ind) + 'box').setPosition(pos[3:])
+
     show_env.config.addFrame('finger_new_pos')
     show_env.config.frame('finger_new_pos').setShape(ry.ST.sphere, size=[0.12])
     show_env.config.frame('finger_new_pos').setColor(
@@ -74,15 +87,16 @@ def show_plan(plan_in):
 
 # %%
 violations = []
-for _ in range(50):
+for _ in range(10):
     obs = ENV.reset()
 
     plan = obs['desired_goal'].reshape(
-        ENV.plan_length, ENV.subspace_for_shaping)
-    ENV.komo.displayTrajectory()
+        ENV.plan_length, ENV.dim_plan)
 
-    print(f'KOMO violations: {ENV.komo.getConstraintViolations()}')
-    violations.append(ENV.komo.getConstraintViolations())
+    if ENV.komo_plans:
+        ENV.komo.displayTrajectory()
+        print(f'KOMO violations: {ENV.komo.getConstraintViolations()}')
+        violations.append(ENV.komo.getConstraintViolations())
 
     fig = plt.figure()
     ax = fig.gca(projection='3d')
@@ -95,9 +109,8 @@ for _ in range(50):
     plt.show()
     plan_view = show_plan(plan)
 
-    print(
-        ENV.komo.getReport()[-2:]
-    )
+    if ENV.komo_plans:
+        print(ENV.komo.getReport()[-2:])
 
 # %%
 plan_lengths = [50, 150, 200]

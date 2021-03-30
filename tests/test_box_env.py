@@ -474,7 +474,10 @@ def test_reset():
         )
 
 
-def test_planning_module(n_trials=50):
+@pytest.mark.parametrize("n_trials", [50])
+@pytest.mark.parametrize("komo_plans", [False, True])
+def test_planning_module(n_trials, komo_plans):
+    # MAKE SURE BOX IS NEVER PENETRATED
     """
     Test whether the planning module returns feasible and dense
     plans with acceptable costs
@@ -483,7 +486,8 @@ def test_planning_module(n_trials=50):
         'gym_physx:physx-pushing-v0',
         # using relaxed reward shaping only to enforce that the
         # environment plans automatically
-        plan_based_shaping=PlanBasedShaping(shaping_mode='relaxed')
+        plan_based_shaping=PlanBasedShaping(shaping_mode='relaxed'),
+        komo_plans=komo_plans
     )
 
     height_offset = env.config.frame(
@@ -509,7 +513,8 @@ def test_planning_module(n_trials=50):
                 achieved_goal)
 
         # ensure acceptable costs
-        acceptable_costs_count += int(env.komo.getConstraintViolations() < 50)
+        costs = env.komo.getConstraintViolations() if komo_plans else 0
+        acceptable_costs_count += int(costs < 50)
 
         # ensure that initial state of the plan is consistent with env state
         assert np.all(np.abs(
