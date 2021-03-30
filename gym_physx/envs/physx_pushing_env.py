@@ -587,8 +587,14 @@ class PhysxPushingEnv(gym.Env):
         # approximately calculate how much time should be spent moving
         # without contact to the box and with contact to the box
         box_target_dist = np.linalg.norm(target_box_diff)
+        finger_box_diff = box_pos - \
+            planner_initial_config.frame('finger').getPosition()
+        first_direction = np.argmax(np.abs(finger_box_diff[:2]))
+        subgoal_position = box_pos.copy()
+        subgoal_position[first_direction] = target_pos[first_direction]
+
         finger_box_dist = np.linalg.norm(
-            box_pos - planner_initial_config.frame('finger').getPosition()
+            finger_box_diff
         )
         no_contact_to_contact_ratio = (
             finger_box_dist-0.2  # 0.2 is half the width of the box
@@ -613,8 +619,10 @@ class PhysxPushingEnv(gym.Env):
             # the following skeleton symbols introduce POAs and force vectors as
             # decision variables. For more information, see
             # https://ipvs.informatik.uni-stuttgart.de/mlr/papers/20-toussaint-RAL.pdf
-            [no_contact_to_contact_ratio, 1.1], ry.SY.quasiStaticOn, ["box"],
-            [no_contact_to_contact_ratio, 1.], ry.SY.contact, ["finger", "box"]
+            [0.0, 0.5], ry.SY.quasiStaticOn, ["box"],
+            [0.2, 0.5], ry.SY.contact, ["finger", "box"],
+            [0.75, 1.1], ry.SY.quasiStaticOn, ["box"],
+            [0.75, 1.0], ry.SY.contact, ["finger", "box"]
         ]
         self.komo = planner_initial_config.komo_path(
             phases=1.,
@@ -653,6 +661,24 @@ class PhysxPushingEnv(gym.Env):
                 self.maximum_rel_z_for_finger_in_config_coords
             ], order=0
         )
+        # 5. subboal:
+        self.komo.addObjective(
+            time=[0.5], feature=ry.FS.position, frames=["box"],
+            type=ry.OT.eq, scale=[1e2], order=0, target=subgoal_position
+        )
+        # self.komo.addObjective(
+        #     time=[0.5], feature=ry.FS.qItself, frames=[],  # [] means all frames
+        #     type=ry.OT.sos, scale=[1e0], order=1
+        # )
+        self.komo.addObjective(
+            time=[0., 1.], feature=ry.FS.quaternionDiff, frames=["box", "target"],
+            type=ry.OT.sos, scale=[1e2], order=0
+        )
+        self.komo.addObjective(
+            time=[0.625], feature=ry.FS.distance, frames=["finger", "box"],
+            type=ry.OT.ineq, scale=[1e0],
+        )
+
         self.komo.setupConfigurations()
         self.komo.optimize()
 
