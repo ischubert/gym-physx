@@ -117,6 +117,7 @@ class PhysxPushingEnv(gym.Env):
         self.config.setJointState(json_config["initial_joint_state"])
 
         self.finger_radius = self.config.frame('finger').info()['size'][0]
+        self.box_xy_size = self.config.frame('box').info()['size'][0]
         self.minimum_rel_z_for_finger_in_config_coords = self.minimum_rel_z_for_finger + \
             self.config.frame('floor').getPosition()[2]
         self.maximum_rel_z_for_finger_in_config_coords = self.maximum_rel_z_for_finger + \
@@ -390,10 +391,6 @@ class PhysxPushingEnv(gym.Env):
         state and target. This plan can not be directly executed
         in the physx simulation.
         """
-        # TODO I have to get these numbers from somewhere else
-        box_size = 0.4
-        finger_radius = 0.06
-        safe_finger_box_distance = 0.1
         target_pos = self.config.frame(
             'target'
         ).getPosition()
@@ -430,7 +427,7 @@ class PhysxPushingEnv(gym.Env):
         # Offset vec for first contact
         offset_vec = [0, 0]
         offset_vec[first_direction] += (
-            box_size/2 + finger_radius
+            self.box_xy_size/2 + self.finger_radius
         ) * np.sign(box_pos[first_direction] - target_pos[first_direction])
 
         # 3rd waypoint: finger first touch, elevated
@@ -470,7 +467,7 @@ class PhysxPushingEnv(gym.Env):
         # Offset vec for second contact
         offset_vec = [0, 0]
         offset_vec[second_direction] += (
-            box_size/2 + finger_radius
+            self.box_xy_size/2 + self.finger_radius
         ) * np.sign(box_pos[second_direction] - target_pos[second_direction])
 
         # 7th waypoint: finger second touch at intermediate step, elevated
