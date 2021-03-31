@@ -34,6 +34,7 @@ class PhysxPushingEnv(gym.Env):
             densify_plans=True,
             plan_length=50,
             fixed_initial_config=None,
+            fixed_finger_initial_position=False,
             plan_generator=None,
             komo_plans=True,
             fps=None,
@@ -48,6 +49,7 @@ class PhysxPushingEnv(gym.Env):
         self.densify_plans = densify_plans
         self.plan_length = plan_length
         self.fixed_initial_config = fixed_initial_config
+        self.fixed_finger_initial_position = fixed_finger_initial_position
         self.plan_generator = plan_generator
         self.komo_plans = komo_plans
         self.fps = fps
@@ -282,7 +284,10 @@ class PhysxPushingEnv(gym.Env):
         if self.fixed_initial_config is None:
             # Sample a finger position and an allowed box position
             if self.plan_generator is None:
-                finger_position = self._sample_finger_pos()
+                if self.fixed_finger_initial_position:
+                    finger_position = np.array([0, 0])
+                else:
+                    finger_position = self._sample_finger_pos()
                 for _ in range(1000):
                     box_position = self._sample_box_position()
                     if self._box_finger_not_colliding(

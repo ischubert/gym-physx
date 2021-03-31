@@ -715,4 +715,32 @@ def test_fixed_initial_config(n_episodes, shaping_object, fixed_initial_config):
                 np.abs(np.array(collected_rewards) - reference_rewards)
             ) < 5e-3
 
+@pytest.mark.parametrize("n_episodes", [10])
+@pytest.mark.parametrize(
+    "shaping_object",
+    [PlanBasedShaping(shaping_mode=None, gamma=None)]
+)
+@pytest.mark.parametrize("fixed_finger_initial_position", [True, False])
+def test_fixed_initial_finger_position(n_episodes, shaping_object, fixed_finger_initial_position):
+    assert shaping_object.shaping_mode in [None, 'relaxed', 'potential_based']
+    env = gym.make(
+        'gym_physx:physx-pushing-v0',
+        plan_based_shaping=shaping_object,
+        fixed_initial_config=None,
+        fixed_finger_initial_position=fixed_finger_initial_position
+    )
+
+    finger_positions = []
+    for _ in range(n_episodes):
+        obs = env.reset()
+        finger_positions.append(obs['observation'][:2])
+
+    finger_positions = np.array(finger_positions)
+    assert finger_positions.shape == (n_episodes, 2)
+    if fixed_finger_initial_position:
+        assert np.max(finger_positions) == 0
+    else:
+        assert not np.max(finger_positions) == 0
+
+
 # %%
