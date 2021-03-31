@@ -456,6 +456,22 @@ class PhysxPushingEnv(gym.Env):
             *intermediate_box_pos,
         ]))
 
+        # Offset vec after first contact
+        offset_vec = [0, 0]
+        offset_vec[first_direction] += (
+            self.box_xy_size/2 + self.finger_radius + 0.2
+        ) * np.sign(box_pos[first_direction] - target_pos[first_direction])
+
+        # 5.5th waypoint: finger first touch at intermediate step, ground level
+        intermediate_box_pos = box_pos.copy()
+        intermediate_box_pos[first_direction] = target_pos[first_direction]
+        waypoints.append(np.array([
+            intermediate_box_pos[0] + offset_vec[0],
+            intermediate_box_pos[1] + offset_vec[1],
+            finger_pos[2],
+            *intermediate_box_pos,
+        ]))
+
         # 6th waypoint: finger first touch at intermediate step, elevated
         waypoints.append(np.array([
             intermediate_box_pos[0] + offset_vec[0],
