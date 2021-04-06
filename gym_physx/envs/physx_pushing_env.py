@@ -70,6 +70,7 @@ class PhysxPushingEnv(gym.Env):
         )
 
         if self.fixed_initial_config is not None:
+            assert not self.fixed_finger_initial_position, "Both fixed_initial_config and fixed_finger_initial_position were given"
             for key in ['finger_position', 'box_position', 'goal_position']:
                 assert key in self.fixed_initial_config, f"fixed_initial_config was set but {key} is missing"
             if "static_plan" in self.fixed_initial_config:
