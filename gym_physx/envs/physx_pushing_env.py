@@ -94,6 +94,8 @@ class PhysxPushingEnv(gym.Env):
         self.reset_box_xy_min = json_config["reset_box_xy_min"]
         self.reset_box_xy_max = json_config["reset_box_xy_max"]
         # box boundaries
+        self.box_xy_min = json_config["box_xy_min"]
+        self.box_xy_max = json_config["box_xy_max"]
         self.maximum_xy_for_finger = json_config["maximum_xy_for_finger"]
         self.minimum_rel_z_for_finger = json_config["minimum_rel_z_for_finger"]
         self.maximum_rel_z_for_finger = json_config["maximum_rel_z_for_finger"]
@@ -132,8 +134,8 @@ class PhysxPushingEnv(gym.Env):
                 -self.maximum_xy_for_finger,
                 -self.maximum_xy_for_finger,
                 self.minimum_rel_z_for_finger,
-                json_config["box_xy_min"],
-                json_config["box_xy_min"],
+                self.box_xy_min,
+                self.box_xy_min,
                 0,
                 -1, -1, -1, -1
             ]),
@@ -141,8 +143,8 @@ class PhysxPushingEnv(gym.Env):
                 self.maximum_xy_for_finger,
                 self.maximum_xy_for_finger,
                 self.maximum_rel_z_for_finger,
-                json_config["box_xy_max"],
-                json_config["box_xy_max"],
+                self.box_xy_max,
+                self.box_xy_max,
                 json_config["box_z_max"],
                 1, 1, 1, 1
             ]),
@@ -158,8 +160,8 @@ class PhysxPushingEnv(gym.Env):
                 high=self.reset_box_xy_max*np.ones(2)
             )
             achieved_goal_space = gym.spaces.Box(
-                low=json_config["box_xy_min"]*np.ones(2),
-                high=json_config["box_xy_max"]*np.ones(2),
+                low=self.box_xy_min*np.ones(2),
+                high=self.box_xy_max*np.ones(2),
             )
 
         else:
@@ -183,16 +185,16 @@ class PhysxPushingEnv(gym.Env):
                 -self.maximum_xy_for_finger,
                 -self.maximum_xy_for_finger,
                 self.minimum_rel_z_for_finger-self.plan_max_stepwidth/2,
-                json_config["box_xy_min"],
-                json_config["box_xy_min"],
+                self.box_xy_min,
+                self.box_xy_min,
                 0
             ]
             achieved_goal_space_high = [
                 self.maximum_xy_for_finger,
                 self.maximum_xy_for_finger,
                 self.maximum_rel_z_for_finger+self.plan_max_stepwidth/2,
-                json_config["box_xy_max"],
-                json_config["box_xy_max"],
+                self.box_xy_max,
+                self.box_xy_max,
                 json_config["box_z_max"]
             ]
             desired_goal_space = gym.spaces.Box(
