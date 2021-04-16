@@ -742,5 +742,44 @@ def test_fixed_initial_finger_position(n_episodes, shaping_object, fixed_finger_
     else:
         assert not np.max(finger_positions) == 0
 
+@pytest.mark.parametrize("n_episodes", [100])
+@pytest.mark.parametrize("action_noise", [0.0, 0.1])
+# %%
+def test_success_rate_of_open_loop_manhattan_plans(n_episodes, action_noise):
+    env = gym.make(
+        'gym_physx:physx-pushing-v0',
+        # using relaxed reward shaping only to enforce that the
+        # environment plans automatically
+        plan_based_shaping=PlanBasedShaping(
+            shaping_mode="relaxed",
+            width=0.5
+        ),
+        fixed_initial_config=None,
+        fixed_finger_initial_position=True,
+        plan_length=50,
+        komo_plans=False,
+        action_uncertainty=action_noise
+    )
+
+    # (almost) open-loop plan execution
+    last_rewards = []
+    for _ in range(n_episodes):
+        obs = env.reset()
+
+        for _ in range(100):
+            plan = obs['desired_goal'].reshape(env.plan_length, env.dim_plan)
+            closest_ind = np.argmin(np.linalg.norm(plan - obs['achieved_goal'][None, :], axis=-1))
+
+            if closest_ind+1 < len(plan):
+                action = plan[closest_ind + 1, :3] - plan[closest_ind, :3]
+                obs, reward, done, info = env.step(action)
+            else:
+                break
+
+        last_rewards.append(reward)
+    if action_noise == 0:
+        assert np.mean(last_rewards) > 0.6
+    else:
+        assert np.mean(last_rewards) < 0.4
 
 # %%
