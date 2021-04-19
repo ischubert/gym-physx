@@ -34,6 +34,7 @@ class PhysxPushingEnv(gym.Env):
             plan_max_stepwidth=0.05,
             densify_plans=True,
             plan_length=50,
+            config_files='pushing',
             fixed_initial_config=None,
             fixed_finger_initial_position=False,
             plan_generator=None,
@@ -68,7 +69,7 @@ class PhysxPushingEnv(gym.Env):
         self.static_plan = None
 
         self.config_file_default = os.path.join(
-            os.path.dirname(__file__), 'config_data/pushing.g'
+            os.path.dirname(__file__), 'config_data/' + config_files + '.g'
         )
 
         if self.fixed_initial_config is not None:
@@ -83,7 +84,7 @@ class PhysxPushingEnv(gym.Env):
         # Read in config file
         with open(os.path.join(
                 os.path.dirname(__file__),
-                'config_data/pushing.json'
+                'config_data/' + config_files + '.json'
         ), 'r') as config_data:
             json_config = json.load(config_data)
         # general dimensions
