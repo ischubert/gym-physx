@@ -53,8 +53,6 @@ def test_compare_manhattan_planner_to_saved():
             plan == obs['desired_goal']
         )
 
-def test_reconstruct_manhattan_planner_with_intermediate_frames_from_encoding():
-    raise NotImplementedError
 
 @pytest.mark.parametrize("n_trials", [20])
 @pytest.mark.parametrize("from_disk", [True, False])
