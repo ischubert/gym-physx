@@ -16,6 +16,47 @@ from stable_baselines3 import HER, DDPG, SAC, TD3
 from gym_physx.envs.shaping import PlanBasedShaping
 from gym_physx.generators.plan_generator import PlanFromDiskGenerator
 
+
+@pytest.mark.parametrize("n_keyframes", [0])
+def test_compare_manhattan_planner_to_saved(n_trials, n_keyframes):
+    data_path = os.path.join(os.path.dirname(__file__), 'test_plans')
+    env = gym.make(
+        'gym_physx:physx-pushing-v0',
+        plan_based_shaping=PlanBasedShaping(
+            shaping_mode="relaxed",
+            width=None
+        ),
+        fixed_initial_config=None,
+        fixed_finger_initial_position=None,
+        plan_generator=None,
+        komo_plans=False,
+        action_uncertainty=0.0,
+        config_files="pushing_obstacle",
+    )
+
+    with open(os.path.join(data_path, "manhattan_n_keyframes_" +  str(
+        n_keyframes
+    ) + ".pkl"), 'rb') as data_stream:
+        saved_data = pickle.load(data_stream)
+    
+    for element in saved_data:
+        finger_pos, box_pos, target_pos, plan = element
+        obs = env._controlled_reset(
+            finger_position = finger_pos,
+            box_position = box_pos,
+            goal_position = target_pos
+        )
+
+        assert np.all(
+            plan == obs['desired_goal']
+        )
+
+def test_manhattan_planner_with_intermediate_frames():
+    raise NotImplementedError
+
+def test_reconstruct_manhattan_planner_with_intermediate_frames_from_encoding():
+    raise NotImplementedError
+
 @pytest.mark.parametrize("n_trials", [20])
 @pytest.mark.parametrize("from_disk", [True, False])
 def test_plan_generator_from_file(n_trials, from_disk):
