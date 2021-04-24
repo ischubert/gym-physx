@@ -16,6 +16,44 @@ from stable_baselines3 import HER, DDPG, SAC, TD3
 from gym_physx.envs.shaping import PlanBasedShaping
 from gym_physx.generators.plan_generator import PlanFromDiskGenerator
 
+
+def test_compare_manhattan_planner_to_saved():
+    """
+    Make sure that the manhattan planner for n_keyframes=0 works as expected
+    """
+    data_path = os.path.join(os.path.dirname(__file__), 'test_plans')
+    env = gym.make(
+        'gym_physx:physx-pushing-v0',
+        plan_based_shaping=PlanBasedShaping(
+            shaping_mode="relaxed",
+            width=None
+        ),
+        fixed_initial_config=None,
+        fixed_finger_initial_position=None,
+        plan_generator=None,
+        komo_plans=False,
+        action_uncertainty=0.0,
+        config_files="pushing_obstacle",
+    )
+
+    with open(os.path.join(
+            data_path, "saved_plans_manhattan_n_keyframes_0.pkl"
+    ), 'rb') as data_stream:
+        saved_data = pickle.load(data_stream)
+
+    for element in saved_data:
+        finger_pos, box_pos, target_pos, plan = element
+        obs = env._controlled_reset(
+            finger_position = finger_pos,
+            box_position = box_pos,
+            goal_position = target_pos
+        )
+
+        assert np.all(
+            plan == obs['desired_goal']
+        )
+
+
 @pytest.mark.parametrize("n_trials", [20])
 @pytest.mark.parametrize("from_disk", [True, False])
 def test_plan_generator_from_file(n_trials, from_disk):
@@ -476,18 +514,25 @@ def test_reset():
 
 @pytest.mark.parametrize("n_trials", [50])
 @pytest.mark.parametrize("komo_plans", [False, True])
-def test_planning_module(n_trials, komo_plans):
+@pytest.mark.parametrize("n_keyframes", [0, 1, 2])
+def test_planning_module(n_trials, komo_plans, n_keyframes):
     # MAKE SURE BOX IS NEVER PENETRATED
     """
     Test whether the planning module returns feasible and dense
     plans with acceptable costs
     """
+    # n_keyframes > 0 only implemented for komo_plans=False
+    if n_keyframes > 0 and komo_plans:
+        return 0
+
     env = gym.make(
         'gym_physx:physx-pushing-v0',
         # using relaxed reward shaping only to enforce that the
         # environment plans automatically
         plan_based_shaping=PlanBasedShaping(shaping_mode='relaxed'),
-        komo_plans=komo_plans
+        komo_plans=komo_plans,
+        n_keyframes=n_keyframes,
+        plan_length=50*(1+n_keyframes)
     )
 
     height_offset = env.config.frame(
@@ -571,7 +616,7 @@ def test_planning_module(n_trials, komo_plans):
             np.linalg.norm(
                 plan[1:] - plan[:-1],
                 axis=-1
-            ) <= 1.2 * np.sqrt(2)*env.plan_max_stepwidth*150/env.plan_length
+            ) <= 2 * np.sqrt(2)*env.plan_max_stepwidth*150/env.plan_length
         )
 
     # A certain amount of plans have to have acceptable cost
@@ -744,7 +789,6 @@ def test_fixed_initial_finger_position(n_episodes, shaping_object, fixed_finger_
 
 @pytest.mark.parametrize("n_episodes", [100])
 @pytest.mark.parametrize("action_noise", [0.0, 0.1])
-# %%
 def test_success_rate_of_open_loop_manhattan_plans(n_episodes, action_noise):
     env = gym.make(
         'gym_physx:physx-pushing-v0',
