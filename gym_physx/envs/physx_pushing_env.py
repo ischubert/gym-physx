@@ -109,6 +109,9 @@ class PhysxPushingEnv(gym.Env):
         self.plan_based_shaping.set_plan_len_and_dim(
             plan_len=self.plan_length, plan_dim=self.dim_plan
         )
+
+        # assert sufficient plan density
+        assert self.plan_length >= 50* (self.n_keyframes + 1), "Please use higher plan_length"
         # assert consistent plan size if plan_generator is given
         if self.plan_generator is not None:
             assert self.plan_generator.plan_dim == self.dim_plan, "plan_generator: wrong plan_dim"
@@ -424,7 +427,9 @@ class PhysxPushingEnv(gym.Env):
 
         # define key frames
         keyframes = [box_pos.copy()] + [
-            np.array(list(self._sample_box_position()) + [self.floor_level]) for _ in range(self.n_keyframes)
+            np.array(list(self._sample_box_position()) + [
+                self.floor_level
+            ]) for _ in range(self.n_keyframes)
         ] + [target_pos.copy(), target_pos.copy()]
 
         # modify intermediate keyframes
@@ -433,7 +438,7 @@ class PhysxPushingEnv(gym.Env):
                 current[0] = previous[0]
             else:
                 current[1] = previous[1]
-        
+
         if self.n_keyframes == 0:
             # in this case, the first push is along the longest
             # direction
@@ -447,15 +452,20 @@ class PhysxPushingEnv(gym.Env):
         else:
             # in this case, the second-to-last push is
             # perpendicular to the third-to-last
-            # check out if this has worked
             direction = 1 if keyframes[-4][0] == keyframes[-3][0] else 0
-            print(direction)
             keyframes[-2][direction] = keyframes[-3][direction]
 
         waypoints = np.array(
             self._get_waypoints(finger_pos, keyframes)
         )
 
+        return self._densify_waypoints(waypoints)
+
+
+    def _densify_waypoints(self, waypoints):
+        """
+        Return a full plan from sequence of waypoints
+        """
         distances = np.linalg.norm(
             waypoints[1:] - waypoints[:-1],
             axis=-1
@@ -477,6 +487,7 @@ class PhysxPushingEnv(gym.Env):
         plan[:, 2] = plan[:, 2]-self.config.frame('floor').getPosition()[2]
 
         return plan.reshape(-1)
+
 
     def _get_waypoints(self, finger_initial, box_keyframes):
         """
@@ -508,10 +519,6 @@ class PhysxPushingEnv(gym.Env):
                 np.abs(to_frame - from_frame)
             )
             assert first_direction in [0, 1]
-            if first_direction == 0:
-                second_direction = 1
-            elif first_direction == 1:
-                second_direction = 0
 
             # Offset vec for first contact
             offset_vec = [0, 0]
