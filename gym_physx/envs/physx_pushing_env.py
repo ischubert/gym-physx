@@ -35,6 +35,7 @@ class PhysxPushingEnv(gym.Env):
             densify_plans=True,
             plan_length=50,
             config_files='pushing',
+            n_keyframes=0,
             fixed_initial_config=None,
             fixed_finger_initial_position=False,
             plan_generator=None,
@@ -51,6 +52,7 @@ class PhysxPushingEnv(gym.Env):
         self.plan_max_stepwidth = plan_max_stepwidth
         self.densify_plans = densify_plans
         self.plan_length = plan_length
+        self.n_keyframes = n_keyframes
         self.fixed_initial_config = fixed_initial_config
         self.fixed_finger_initial_position = fixed_finger_initial_position
         self.plan_generator = plan_generator
@@ -414,116 +416,45 @@ class PhysxPushingEnv(gym.Env):
             'finger'
         ).getPosition()
 
-        waypoints = []
+        # underlying dim: finger init pos (2D), start+goal (4D),
+        # plus 2D for all intermediate keyframes
+        # the 2 pushes from the last intermediate (or the initial pos) to the goal
+        # are a deterministic function of the position of the last intermediate
+        # (or the initial pos) and the goal
 
-        # 1st waypoint: initial pos
-        waypoints.append(np.array([
-            *finger_pos,
-            *box_pos,
-        ]))
+        # define key frames
+        keyframes = [box_pos.copy()] + [
+            np.array(list(self._sample_box_position()) + [self.floor_level]) for _ in range(self.n_keyframes)
+        ] + [target_pos.copy(), target_pos.copy()]
 
-        # 2nd waypoint: initial pos with elevated finger pos
-        waypoints.append(np.array([
-            finger_pos[0], finger_pos[1], finger_pos[2] + 0.4,
-            *box_pos,
-        ]))
+        # modify intermediate keyframes
+        for previous, current in zip(keyframes[:-3], keyframes[1:-2:]):
+            if np.random.rand() >= 0.5:
+                current[0] = previous[0]
+            else:
+                current[1] = previous[1]
+        
+        if self.n_keyframes == 0:
+            # in this case, the first push is along the longest
+            # direction
+            first_dir = np.argmax(
+                np.abs(target_pos - box_pos)
+            )
+            assert first_dir in [0, 1]
+            second_dir = 0 if first_dir == 1 else 1
+            keyframes[-2][first_dir] = target_pos[first_dir]
+            keyframes[-2][second_dir] = box_pos[second_dir]
+        else:
+            # in this case, the second-to-last push is
+            # perpendicular to the third-to-last
+            # check out if this has worked
+            direction = 1 if keyframes[-4][0] == keyframes[-3][0] else 0
+            print(direction)
+            keyframes[-2][direction] = keyframes[-3][direction]
 
-        first_direction = np.argmax(
-            np.abs(target_pos - box_pos)
+        waypoints = np.array(
+            self._get_waypoints(finger_pos, keyframes)
         )
-        assert first_direction in [0, 1]
-        if first_direction == 0:
-            second_direction = 1
-        elif first_direction == 1:
-            second_direction = 0
-
-        # Offset vec for first contact
-        offset_vec = [0, 0]
-        offset_vec[first_direction] += (
-            self.box_xy_size/2 + self.finger_radius
-        ) * np.sign(box_pos[first_direction] - target_pos[first_direction])
-
-        # 3rd waypoint: finger first touch, elevated
-        waypoints.append(np.array([
-            box_pos[0] + offset_vec[0],
-            box_pos[1] + offset_vec[1],
-            finger_pos[2] + 0.4,
-            *box_pos,
-        ]))
-
-        # 4th waypoint: finger first touch, ground level
-        waypoints.append(np.array([
-            box_pos[0] + offset_vec[0],
-            box_pos[1] + offset_vec[1],
-            finger_pos[2],
-            *box_pos,
-        ]))
-
-        # 5th waypoint: finger first touch at intermediate step, ground level
-        intermediate_box_pos = box_pos.copy()
-        intermediate_box_pos[first_direction] = target_pos[first_direction]
-        waypoints.append(np.array([
-            intermediate_box_pos[0] + offset_vec[0],
-            intermediate_box_pos[1] + offset_vec[1],
-            finger_pos[2],
-            *intermediate_box_pos,
-        ]))
-
-        # Offset vec after first contact
-        offset_vec = [0, 0]
-        offset_vec[first_direction] += (
-            self.box_xy_size/2 + self.finger_radius + 0.2
-        ) * np.sign(box_pos[first_direction] - target_pos[first_direction])
-
-        # 5.5th waypoint: finger first touch at intermediate step, ground level
-        intermediate_box_pos = box_pos.copy()
-        intermediate_box_pos[first_direction] = target_pos[first_direction]
-        waypoints.append(np.array([
-            intermediate_box_pos[0] + offset_vec[0],
-            intermediate_box_pos[1] + offset_vec[1],
-            finger_pos[2],
-            *intermediate_box_pos,
-        ]))
-
-        # 6th waypoint: finger first touch at intermediate step, elevated
-        waypoints.append(np.array([
-            intermediate_box_pos[0] + offset_vec[0],
-            intermediate_box_pos[1] + offset_vec[1],
-            finger_pos[2] + 0.4,
-            *intermediate_box_pos,
-        ]))
-
-        # Offset vec for second contact
-        offset_vec = [0, 0]
-        offset_vec[second_direction] += (
-            self.box_xy_size/2 + self.finger_radius
-        ) * np.sign(box_pos[second_direction] - target_pos[second_direction])
-
-        # 7th waypoint: finger second touch at intermediate step, elevated
-        waypoints.append(np.array([
-            intermediate_box_pos[0] + offset_vec[0],
-            intermediate_box_pos[1] + offset_vec[1],
-            finger_pos[2] + 0.4,
-            *intermediate_box_pos,
-        ]))
-
-        # 8th waypoint: finger second touch at intermediate step, ground level
-        waypoints.append(np.array([
-            intermediate_box_pos[0] + offset_vec[0],
-            intermediate_box_pos[1] + offset_vec[1],
-            finger_pos[2],
-            *intermediate_box_pos,
-        ]))
-
-        # 9th waypoint: finger second touch at goal, ground level
-        waypoints.append(np.array([
-            target_pos[0] + offset_vec[0],
-            target_pos[1] + offset_vec[1],
-            finger_pos[2],
-            *target_pos,
-        ]))
-
-        waypoints = np.array(waypoints)
 
         distances = np.linalg.norm(
             waypoints[1:] - waypoints[:-1],
@@ -547,6 +478,103 @@ class PhysxPushingEnv(gym.Env):
 
         return plan.reshape(-1)
 
+    def _get_waypoints(self, finger_initial, box_keyframes):
+        """
+        create waypoints from initial finger position and box keyframes
+        """
+        waypoints = []
+
+        # 1st waypoint: initial pos
+        waypoints.append(np.array([
+            *finger_initial,
+            *box_keyframes[0],
+        ]))
+
+        # 2nd waypoint: initial pos with elevated finger pos
+        waypoints.append(np.array([
+            finger_initial[0], finger_initial[1], finger_initial[2] + 0.4,
+            *box_keyframes[0],
+        ]))
+
+        for ind, (from_frame, to_frame) in enumerate(
+            zip(box_keyframes[:-1], box_keyframes[1:])
+        ):
+            # the following sequence basically performs a push
+            # along a single direction
+            # assert that steps only differ in 1 dimension
+            assert sum(from_frame == to_frame) == 2
+
+            first_direction = np.argmax(
+                np.abs(to_frame - from_frame)
+            )
+            assert first_direction in [0, 1]
+            if first_direction == 0:
+                second_direction = 1
+            elif first_direction == 1:
+                second_direction = 0
+
+            # Offset vec for first contact
+            offset_vec = [0, 0]
+            offset_vec[first_direction] += (
+                self.box_xy_size/2 + self.finger_radius
+            ) * np.sign(from_frame[first_direction] - to_frame[first_direction])
+
+            # 3rd waypoint: finger first touch, elevated
+            waypoints.append(np.array([
+                from_frame[0] + offset_vec[0],
+                from_frame[1] + offset_vec[1],
+                finger_initial[2] + 0.4,
+                *from_frame,
+            ]))
+
+            # 4th waypoint: finger first touch, ground level
+            waypoints.append(np.array([
+                from_frame[0] + offset_vec[0],
+                from_frame[1] + offset_vec[1],
+                finger_initial[2],
+                *from_frame,
+            ]))
+
+            # 5th waypoint: finger first touch at intermediate step, ground level
+            intermediate_box_pos = from_frame.copy()
+            intermediate_box_pos[first_direction] = to_frame[first_direction]
+            waypoints.append(np.array([
+                intermediate_box_pos[0] + offset_vec[0],
+                intermediate_box_pos[1] + offset_vec[1],
+                finger_initial[2],
+                *intermediate_box_pos,
+            ]))
+
+            # do not perform the "step-back-and-go-up"
+            # squence if it is the last
+            if not ind == len(box_keyframes[:-1]) - 1:
+                # Offset vec after first contact
+                offset_vec = [0, 0]
+                offset_vec[first_direction] += (
+                    self.box_xy_size/2 + self.finger_radius + 0.2
+                ) * np.sign(from_frame[first_direction] - to_frame[first_direction])
+
+                # 6th waypoint: finger first touch at intermediate step, ground level, step back
+                intermediate_box_pos = from_frame.copy()
+                intermediate_box_pos[first_direction] = to_frame[first_direction]
+                waypoints.append(np.array([
+                    intermediate_box_pos[0] + offset_vec[0],
+                    intermediate_box_pos[1] + offset_vec[1],
+                    finger_initial[2],
+                    *intermediate_box_pos,
+                ]))
+
+                # 7th waypoint: finger first touch at intermediate step, elevated
+                waypoints.append(np.array([
+                    intermediate_box_pos[0] + offset_vec[0],
+                    intermediate_box_pos[1] + offset_vec[1],
+                    finger_initial[2] + 0.4,
+                    *intermediate_box_pos,
+                ]))
+
+        return waypoints
+
+
     def _get_komo_plan(self):
         """
         Uses rai/KOMO to calculate plan using the current
@@ -555,6 +583,7 @@ class PhysxPushingEnv(gym.Env):
         in the physx simulation.
         """
 
+        assert self.n_keyframes == 0, "n_keyframes =/= 0 is not implemented for KOMO plans"
         plan = []
 
         # create copy of of self.config
