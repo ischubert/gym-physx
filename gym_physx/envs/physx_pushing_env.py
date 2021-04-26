@@ -192,16 +192,16 @@ class PhysxPushingEnv(gym.Env):
             #   t=plan_length-1: box_x, t=plan_length-1: box_y, t=plan_length-1: box_z,
             # ]
             achieved_goal_space_low = [
-                -self.maximum_xy_for_finger - self.pushing_step_back,
-                -self.maximum_xy_for_finger - self.pushing_step_back,
+                -self.maximum_xy_for_finger,
+                -self.maximum_xy_for_finger,
                 self.minimum_rel_z_for_finger-self.plan_max_stepwidth/2,
                 self.box_xy_min,
                 self.box_xy_min,
                 0
             ]
             achieved_goal_space_high = [
-                self.maximum_xy_for_finger + self.pushing_step_back,
-                self.maximum_xy_for_finger + self.pushing_step_back,
+                self.maximum_xy_for_finger,
+                self.maximum_xy_for_finger,
                 self.maximum_rel_z_for_finger+self.plan_max_stepwidth/2,
                 self.box_xy_max,
                 self.box_xy_max,
@@ -314,7 +314,7 @@ class PhysxPushingEnv(gym.Env):
         """
         Reset the environment randomly
         """
-        # TODO not implemented yet for obstacle env
+        # TODO reset() is not checking for possible obstacles yet
         if self.fixed_initial_config is None:
             # Sample a finger position and an allowed box position
             if self.plan_generator is None:
