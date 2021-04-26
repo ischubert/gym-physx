@@ -101,6 +101,8 @@ class PhysxPushingEnv(gym.Env):
         # box boundaries
         self.box_xy_min = json_config["box_xy_min"]
         self.box_xy_max = json_config["box_xy_max"]
+        self.pushing_step_back = json_config["pushing_step_back"]
+        self.pushing_step_up = json_config["pushing_step_up"]
         self.maximum_xy_for_finger = json_config["maximum_xy_for_finger"]
         self.minimum_rel_z_for_finger = json_config["minimum_rel_z_for_finger"]
         self.maximum_rel_z_for_finger = json_config["maximum_rel_z_for_finger"]
@@ -190,16 +192,16 @@ class PhysxPushingEnv(gym.Env):
             #   t=plan_length-1: box_x, t=plan_length-1: box_y, t=plan_length-1: box_z,
             # ]
             achieved_goal_space_low = [
-                -self.maximum_xy_for_finger,
-                -self.maximum_xy_for_finger,
+                -self.maximum_xy_for_finger - self.pushing_step_back,
+                -self.maximum_xy_for_finger - self.pushing_step_back,
                 self.minimum_rel_z_for_finger-self.plan_max_stepwidth/2,
                 self.box_xy_min,
                 self.box_xy_min,
                 0
             ]
             achieved_goal_space_high = [
-                self.maximum_xy_for_finger,
-                self.maximum_xy_for_finger,
+                self.maximum_xy_for_finger + self.pushing_step_back,
+                self.maximum_xy_for_finger + self.pushing_step_back,
                 self.maximum_rel_z_for_finger+self.plan_max_stepwidth/2,
                 self.box_xy_max,
                 self.box_xy_max,
@@ -232,6 +234,14 @@ class PhysxPushingEnv(gym.Env):
             high=+self.max_action*np.ones(3)
         )
 
+        # add collision feature if obstacle was defined
+        self.collision_feature = self.config.feature(
+            ry.FS.distance, ["finger", "obstacle"]
+        ) if "obstacle" in self.config.getFrameNames() else None
+        if self.collision_feature is not None:
+            description = self.collision_feature.description(self.config)
+            print(f"Added collision feature: {description}")
+
         self.reset()
 
     def step(self, action):
@@ -253,6 +263,9 @@ class PhysxPushingEnv(gym.Env):
         # gradual pushing movement
         joint_q = self.config.getJointState()
         for _ in range(self.n_steps):
+            if not self.collision_feature is None:
+                old_joint_q = joint_q.copy()
+
             new_x = joint_q[0] + self.proportion_per_step * action[0]
             if abs(new_x) < self.maximum_xy_for_finger:
                 joint_q[0] = new_x
@@ -266,6 +279,13 @@ class PhysxPushingEnv(gym.Env):
                 joint_q[2] = new_z
 
             self.config.setJointState(joint_q)
+            # if an obstacle exists...
+            if not self.collision_feature is None:
+                # ... revert if new state would be in collision
+                if self.collision_feature.eval(self.config)[0][0] >= 0:
+                    joint_q = old_joint_q
+                    self.config.setJointState(joint_q)
+
             self.simulation.step(u_control=[0, 0, 0, 0, 0, 0, 0], tau=self.tau)
             if self.fps is not None:
                 time.sleep(1/self.fps)
@@ -294,6 +314,7 @@ class PhysxPushingEnv(gym.Env):
         """
         Reset the environment randomly
         """
+        # TODO not implemented yet for obstacle env
         if self.fixed_initial_config is None:
             # Sample a finger position and an allowed box position
             if self.plan_generator is None:
@@ -503,7 +524,7 @@ class PhysxPushingEnv(gym.Env):
 
         # 2nd waypoint: initial pos with elevated finger pos
         waypoints.append(np.array([
-            finger_initial[0], finger_initial[1], finger_initial[2] + 0.4,
+            finger_initial[0], finger_initial[1], finger_initial[2] + self.pushing_step_up,
             *box_keyframes[0],
         ]))
 
@@ -530,7 +551,7 @@ class PhysxPushingEnv(gym.Env):
             waypoints.append(np.array([
                 from_frame[0] + offset_vec[0],
                 from_frame[1] + offset_vec[1],
-                finger_initial[2] + 0.4,
+                finger_initial[2] + self.pushing_step_up,
                 *from_frame,
             ]))
 
@@ -558,7 +579,7 @@ class PhysxPushingEnv(gym.Env):
                 # Offset vec after first contact
                 offset_vec = [0, 0]
                 offset_vec[first_direction] += (
-                    self.box_xy_size/2 + self.finger_radius + 0.2
+                    self.box_xy_size/2 + self.finger_radius + self.pushing_step_back
                 ) * np.sign(from_frame[first_direction] - to_frame[first_direction])
 
                 # 6th waypoint: finger first touch at intermediate step, ground level, step back
@@ -575,7 +596,7 @@ class PhysxPushingEnv(gym.Env):
                 waypoints.append(np.array([
                     intermediate_box_pos[0] + offset_vec[0],
                     intermediate_box_pos[1] + offset_vec[1],
-                    finger_initial[2] + 0.4,
+                    finger_initial[2] + self.pushing_step_up,
                     *intermediate_box_pos,
                 ]))
 
@@ -621,7 +642,7 @@ class PhysxPushingEnv(gym.Env):
         ) <= 0:
             # hardcode first part of movement: define finger waypoints
             wp_1 = finger_pos
-            wp_2 = finger_pos + np.array([0, 0, 0.4])
+            wp_2 = finger_pos + np.array([0, 0, self.pushing_step_up])
             for exp in range(10):
                 wp_3 = box_pos - 0.8**exp * 0.7 * \
                     (target_box_diff/np.linalg.norm(target_box_diff))

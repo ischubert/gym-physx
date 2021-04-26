@@ -16,6 +16,63 @@ from stable_baselines3 import HER, DDPG, SAC, TD3
 from gym_physx.envs.shaping import PlanBasedShaping
 from gym_physx.generators.plan_generator import PlanFromDiskGenerator
 
+def test_pushing_obstacle():
+    """
+    Make sure that pushing_obstacle behaves as expected
+    """
+    with open(os.path.join(
+            os.path.dirname(__file__), "expected_observations_obstacle.json"
+    ), "r") as in_file:
+        expected = json.load(in_file)
+
+    env = gym.make(
+        'gym_physx:physx-pushing-v0',
+        plan_based_shaping=PlanBasedShaping(
+            shaping_mode=None,
+            width=None
+        ),
+        fixed_initial_config=None,
+        fixed_finger_initial_position=None,
+        plan_generator=None,
+        komo_plans=False,
+        action_uncertainty=0.0,
+        config_files="pushing_obstacle"
+    )
+
+    env._controlled_reset(  # pylint: disable=protected-access
+        finger_position=[0, 1],
+        box_position=[0, 0.5],
+        goal_position=[1.5, 1.5]
+    )
+    actions = [
+        [0, -.01, 0],
+        [-.01, 0, 0],
+        [0, -.01, 0],
+        [.01, 0, 0],
+        [0, -.01, 0],
+        [.01, 0, 0],
+        [0, .01, 0],
+        [0, 0, .01],
+        [0, .01, 0],
+        [0, 0, -.01],
+        [.01, 0, 0],
+        [0, .01, -0.02],
+        [-.01, 0, 0],
+        [0, -.01, 0]
+    ]
+    durations = [
+        100, 70, 10, 70, 30, 20, 40,
+        20, 10, 20, 100, 60, 80, 20
+    ]
+
+    observations = []
+    for action, duration in zip(actions, durations):
+        for _ in range(duration):
+            # time.sleep(0.05)
+            obs, _, _, _ = env.step(action)
+            observations.append(list(obs["observation"]))
+    
+    assert np.all(np.array(observations) == np.array(expected))
 
 def test_compare_manhattan_planner_to_saved():
     """
@@ -33,7 +90,7 @@ def test_compare_manhattan_planner_to_saved():
         plan_generator=None,
         komo_plans=False,
         action_uncertainty=0.0,
-        config_files="pushing_obstacle",
+        config_files="pushing",
     )
 
     with open(os.path.join(
@@ -44,9 +101,9 @@ def test_compare_manhattan_planner_to_saved():
     for element in saved_data:
         finger_pos, box_pos, target_pos, plan = element
         obs = env._controlled_reset(
-            finger_position = finger_pos,
-            box_position = box_pos,
-            goal_position = target_pos
+            finger_position=finger_pos,
+            box_position=box_pos,
+            goal_position=target_pos
         )
 
         assert np.all(

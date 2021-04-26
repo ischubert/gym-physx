@@ -28,6 +28,10 @@ setup(
     include_package_data=True,
     data_files=[("", [
         "gym_physx/envs/config_data/pushing.g",
-        "gym_physx/envs/config_data/pushing.json"
+        "gym_physx/envs/config_data/pushing.json",
+        "gym_physx/envs/config_data/pushing_large.g",
+        "gym_physx/envs/config_data/pushing_large.json",
+        "gym_physx/envs/config_data/pushing_obstacle.g",
+        "gym_physx/envs/config_data/pushing_obstacle.json"
     ])]
 )
