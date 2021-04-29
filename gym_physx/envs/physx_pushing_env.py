@@ -395,7 +395,7 @@ class PhysxPushingEnv(gym.Env):
             if info is not None:
                 if "original_plan" in info[0]:
                     desired_goal = np.array(
-                        [ele["original_plan"] for ele in info]).copy()
+                        [ele["original_plan"] for ele in info])
 
             binary_reward = (np.linalg.norm(
                 achieved_goal[:, -3:] - desired_goal.reshape(
