@@ -71,8 +71,8 @@ def test_pushing_obstacle():
             # time.sleep(0.05)
             obs, _, _, _ = env.step(action)
             observations.append(list(obs["observation"]))
-    
-    assert np.all(np.array(observations) == np.array(expected))
+
+    assert np.all(np.abs(np.array(observations) - np.array(expected)) < 1e-3)
 
 def test_compare_manhattan_planner_to_saved():
     """
@@ -571,7 +571,7 @@ def test_reset():
 
 @pytest.mark.parametrize("n_trials", [50])
 @pytest.mark.parametrize("komo_plans", [False, True])
-@pytest.mark.parametrize("n_keyframes", [0, 1, 2])
+@pytest.mark.parametrize("n_keyframes", [0, 1])
 def test_planning_module(n_trials, komo_plans, n_keyframes):
     # MAKE SURE BOX IS NEVER PENETRATED
     """
