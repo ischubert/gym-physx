@@ -18,7 +18,7 @@ while not done:
     action = my_policy(obs[‘observation’], obs[‘desired_goal’])
     obs, reward, done, info = env.step(action)
 ```
-[`rai-python`](https://github.com/ischubert/rai-python/tree/plan_conditioned_rl) is needed for the planning capabilities (see below). It is recommended to use the [`rai-python` Docker images](https://github.com/ischubert/rai-python/packages/). Alternatively, you can do the installation manually. Please see below for more details.
+[`rai-python` at branch `plan_conditioned_rl`](https://github.com/ischubert/rai-python/tree/plan_conditioned_rl) is needed for the planning capabilities (see below). It is recommended to use the [`rai-python` Docker images](https://github.com/ischubert/rai-python/packages/). Alternatively, you can do the installation manually. Please see below for more details.
 
 ## Available Environments
 - PhysxPushing: (See title image): The name of the game is to push the black box towards the green goal position. The black sphere ("finger") is can be moved into x-,y-, and z-direction.
@@ -29,7 +29,7 @@ All environments contain planning modules that plan approximate manipulation seq
 The approximate plan is updated each time `env.reset()` is called. It can also be updated manually using `env._get_approximate_plan()`.
 
 ## Plan-based Reward Shaping
-The approximate plan can be used by the environment to provide a shaped reward signal either using potential-based reward shaping [(Ng et al. 1999)](http://luthuli.cs.uiuc.edu/~daf/courses/games/AIpapers/ml99-shaping.pdf) or relaxed reward shaping [(Schubert et al. 2021)](https://openreview.net/forum?id=w2Z2OwVNeK). In both cases, the shaped reward is returned by `env.step()` instead of the binary environment reward.
+The approximate plan can be used by the environment to provide a shaped reward signal either using potential-based reward shaping [(Ng et al. 1999)](http://luthuli.cs.uiuc.edu/~daf/courses/games/AIpapers/ml99-shaping.pdf) or final-volume-preserving reward shaping [(Schubert et al. 2021)](https://openreview.net/forum?id=w2Z2OwVNeK). In both cases, the shaped reward is returned by `env.step()` instead of the binary environment reward.
 
 You can use reward shaping by specifying a shaper object:
 ```python
