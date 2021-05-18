@@ -106,6 +106,7 @@ class PhysxPushingEnv(gym.Env):
         self.maximum_xy_for_finger = json_config["maximum_xy_for_finger"]
         self.minimum_rel_z_for_finger = json_config["minimum_rel_z_for_finger"]
         self.maximum_rel_z_for_finger = json_config["maximum_rel_z_for_finger"]
+        self.box_start_wiggle_room = json_config["box_start_wiggle_room"]
         # plan dimensionality
         self.dim_plan = json_config["dim_plan"]
         self.plan_based_shaping.set_plan_len_and_dim(
@@ -314,36 +315,49 @@ class PhysxPushingEnv(gym.Env):
         """
         Reset the environment randomly
         """
-        # TODO reset() is not checking for possible obstacles yet
-        if self.fixed_initial_config is None:
-            # Sample a finger position and an allowed box position
-            if self.plan_generator is None:
-                if self.fixed_finger_initial_position:
-                    finger_position = np.array([0, 0])
+        while True:
+            feasible = False
+            if self.fixed_initial_config is None:
+                # Sample a finger position and an allowed box position
+                if self.plan_generator is None:
+                    if self.fixed_finger_initial_position:
+                        finger_position = np.array([0, 0])
+                    else:
+                        finger_position = self._sample_finger_pos()
+                    for _ in range(1000):
+                        box_position = self._sample_box_position()
+                        if self._box_finger_not_colliding(
+                                finger_position,
+                                box_position
+                        ):
+                            break
+                    goal_position = self._sample_box_position()
+                    precomputed_plan = None
                 else:
-                    finger_position = self._sample_finger_pos()
-                for _ in range(1000):
-                    box_position = self._sample_box_position()
-                    if self._box_finger_not_colliding(
-                            finger_position,
-                            box_position
-                    ):
-                        break
-                goal_position = self._sample_box_position()
-                precomputed_plan = None
+                    reset_data = self.plan_generator.sample()
+
+                    finger_position = reset_data['finger_position']
+                    box_position = reset_data['box_position']
+                    goal_position = reset_data['goal_position']
+                    precomputed_plan = reset_data['precomputed_plan']
+
             else:
-                reset_data = self.plan_generator.sample()
+                finger_position = self.fixed_initial_config["finger_position"]
+                box_position = self.fixed_initial_config["box_position"]
+                goal_position = self.fixed_initial_config["goal_position"]
+                precomputed_plan = None
 
-                finger_position = reset_data['finger_position']
-                box_position = reset_data['box_position']
-                goal_position = reset_data['goal_position']
-                precomputed_plan = reset_data['precomputed_plan']
-
-        else:
-            finger_position = self.fixed_initial_config["finger_position"]
-            box_position = self.fixed_initial_config["box_position"]
-            goal_position = self.fixed_initial_config["goal_position"]
-            precomputed_plan = None
+            if not "obstacle" in self.config.getFrameNames():
+                # all plans are feasible in this case
+                feasible = True
+            else:
+                feasible = self.is_start_and_final_feasible(
+                    finger_position,
+                    box_position,
+                    goal_position
+                )
+            if feasible:
+                break
 
         return self._controlled_reset(
             finger_position,
@@ -418,10 +432,21 @@ class PhysxPushingEnv(gym.Env):
         Calculate approximate plan
         """
 
-        if self.komo_plans:
-            return self._get_komo_plan()
-        else:
-            return self._get_manhattan_plan()
+        feasible = False
+        while True:
+            if self.komo_plans:
+                plan = self._get_komo_plan()
+            else:
+                plan = self._get_manhattan_plan()
+
+            if not "obstacle" in self.config.getFrameNames():
+                feasible = True
+            else:
+                feasible = self.is_plan_feasible(plan)
+            if feasible:
+                break
+
+        return plan
 
 
     def _get_manhattan_plan(self):
@@ -529,7 +554,7 @@ class PhysxPushingEnv(gym.Env):
         ]))
 
         for ind, (from_frame, to_frame) in enumerate(
-            zip(box_keyframes[:-1], box_keyframes[1:])
+                zip(box_keyframes[:-1], box_keyframes[1:])
         ):
             # the following sequence basically performs a push
             # along a single direction
@@ -977,3 +1002,105 @@ class PhysxPushingEnv(gym.Env):
         return any(np.abs(
             np.array(finger_position) - np.array(box_position)
         ) > self.collision_distance)
+
+    def is_start_and_final_feasible(
+            self,
+            finger_position,
+            box_position,
+            goal_position
+    ):
+        """
+        Check whether start and final position are feasible
+        """
+        feasible = True
+        config_copy = self._create_config()
+        self._refresh_target(config_copy)
+        for frame_name in self.config.getFrameNames():
+            config_copy.frame(frame_name).setPosition(
+                self.config.frame(frame_name).getPosition()
+            )
+            config_copy.frame(frame_name).setQuaternion(
+                self.config.frame(frame_name).getQuaternion()
+            )
+
+        joint_q = np.array([
+            *finger_position,
+            self.finger_relative_level,
+            1., 0., 0., 0.
+        ])
+        # set end effector
+        config_copy.setJointState(joint_q)
+        # set box
+        config_copy.frame("box").setPosition([
+            *box_position,
+            self.floor_level
+        ])
+        config_copy.frame("box").setQuaternion(
+            [1., 0., 0., 0.]
+        )
+        # set target
+        config_copy.frame("target").setPosition([
+            *goal_position,
+            self.floor_level
+        ])
+        config_copy.frame("target").setQuaternion(
+            [1., 0., 0., 0.]
+        )
+
+        copy_finger_coll = config_copy.feature(ry.FS.distance, ["finger", "obstacle"])
+        copy_box_coll = config_copy.feature(ry.FS.distance, ["box", "obstacle"])
+
+        # Make sure that the box's start position is not in collision with the obstacle
+        # leave a little bit of wiggle room for the box at the start
+        if copy_box_coll.eval(config_copy)[0][0] >= - self.box_start_wiggle_room:
+            feasible = False
+
+        # Make sure that the finger's start position is not in collision with the obstacle
+        if copy_finger_coll.eval(config_copy)[0][0] >= 0:
+            feasible = False
+
+        # Make sure that the box's goal position is not in collision with the obstacle
+        config_copy.frame("box").setPosition([
+            *goal_position,
+            self.floor_level
+        ])
+        if copy_box_coll.eval(config_copy)[0][0] >= 0:
+            feasible = False
+
+        return feasible
+
+
+    def is_plan_feasible(self, plan):
+        """
+        Check whether plan is feasible
+        """
+        feasible = True
+        config_copy = self._create_config()
+        self._refresh_target(config_copy)
+        for frame_name in self.config.getFrameNames():
+            config_copy.frame(frame_name).setPosition(
+                self.config.frame(frame_name).getPosition()
+            )
+            config_copy.frame(frame_name).setQuaternion(
+                self.config.frame(frame_name).getQuaternion()
+            )
+        copy_finger_coll = config_copy.feature(ry.FS.distance, ["finger", "obstacle"])
+        copy_box_coll = config_copy.feature(ry.FS.distance, ["box", "obstacle"])
+
+        plan = plan.reshape(self.plan_length, self.dim_plan)
+        for element in plan:
+            joint_q = np.array([
+                element[0], element[1], element[2],
+                1., 0., 0., 0.
+            ])
+            config_copy.setJointState(joint_q)
+            config_copy.frame("box").setPosition(element[3:])
+
+            if copy_box_coll.eval(config_copy)[0][0] >= 0.0:
+                feasible = False
+                break
+            if copy_finger_coll.eval(config_copy)[0][0] >= 0.0:
+                feasible = False
+                break
+
+        return feasible

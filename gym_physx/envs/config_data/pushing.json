@@ -15,6 +15,7 @@
     "pushing_step_back": 0.2,
     "pushing_step_up": 0.4,
     "dim_plan": 6,
+    "box_start_wiggle_room": null,
     "initial_joint_state": [0.3, 0.3, 0.15, 1.0, 0.0, 0.0, 0.0],
     "floor_color": [0.78431373, 0.78431373, 0.78431373],
     "finger_color": [0.36470588, 0.34117647, 0.36862745, 1.0],
