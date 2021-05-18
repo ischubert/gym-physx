@@ -15,13 +15,17 @@ class PlanBasedShaping():
             gamma=None,
             potential_function='gaussian',
             width=0.2,
-            potential_based_scaling=1
+            potential_based_scaling=1,
+            relaxed_offset=None,
+            relaxed_scaling=None
     ):
         self.shaping_mode = shaping_mode
         self.gamma = gamma
         self.potential_function = potential_function
         self.width = width
         self.potential_based_scaling = potential_based_scaling
+        self.relaxed_offset = 0 if relaxed_offset is None else relaxed_offset
+        self.relaxed_scaling = 0.5 if relaxed_scaling is None else relaxed_scaling
 
         self.plan_len = None
         self.plan_dim = None
@@ -114,9 +118,9 @@ class PlanBasedShaping():
 
             # calculate time of smallest (exp.) distance for each sample
             ind_smallest_dist = np.argmax(exponential_dists, axis=-1)
-            return 0.5 * exponential_dists[
+            return self.relaxed_scaling * exponential_dists[
                 np.arange(len(exponential_dists)), ind_smallest_dist
-            ] * ind_smallest_dist/self.plan_len
+            ] * (self.relaxed_offset + ind_smallest_dist/self.plan_len)
 
         # box distance function
         if self.potential_function == 'box_distance':
