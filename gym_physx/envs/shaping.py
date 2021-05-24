@@ -77,8 +77,8 @@ class PlanBasedShaping():
         if self.shaping_mode == 'potential_based':
             assert previous_achieved_goal is not None
             assert self.gamma is not None
-            return reward + self.gamma * self.potential_based_scaling*(
-                self.plan_based_reward(
+            return reward + self.potential_based_scaling*(
+                self.gamma * self.plan_based_reward(
                     achieved_goal,
                     desired_goal
                 ) - self.plan_based_reward(

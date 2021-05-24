@@ -29,6 +29,7 @@ class PhysxPushingEnv(gym.Env):
             max_action=0.1,
             action_duration=0.5,
             action_uncertainty=0.0,
+            drift=True,
             tau=.01,
             target_tolerance=0.1,
             plan_max_stepwidth=0.05,
@@ -47,6 +48,7 @@ class PhysxPushingEnv(gym.Env):
         self.max_action = max_action
         self.action_duration = action_duration
         self.action_uncertainty = action_uncertainty
+        self.drift = drift
         self.tau = tau
         self.target_tolerance = target_tolerance
         self.plan_max_stepwidth = plan_max_stepwidth
@@ -253,7 +255,10 @@ class PhysxPushingEnv(gym.Env):
         self.previous_achieved_goal = self.current_achieved_goal.copy()
 
         # perturb action
-        action += self.action_uncertainty * np.linalg.norm(action) *2*(np.random.rand(3)-1)
+        if self.drift:
+            action += self.action_uncertainty * np.linalg.norm(action) *2*(np.random.rand(3)-1)
+        else:
+            action += self.action_uncertainty * np.linalg.norm(action) *(2*np.random.rand(3)-1)
         # clip action
         action = np.clip(
             action,
