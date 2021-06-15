@@ -798,11 +798,11 @@ def test_fixed_initial_config(n_episodes, shaping_object, fixed_initial_config):
                 None
             )
 
-        # Computed rewards have to be strictly consistent
+        # Computed rewards always have to be strictly consistent
         assert np.all(np.array(collected_rewards) == computed_rewards)
 
         if fixed_initial_config is not None:
-            # Reference rewards have to be
+            # Reference rewards have to be...
             if 'static_plan' in fixed_initial_config:
                 # ..striclty consistent if the reference plan was used
                 if shaping_object.shaping_mode is not None:
@@ -810,7 +810,9 @@ def test_fixed_initial_config(n_episodes, shaping_object, fixed_initial_config):
                         env.current_desired_goal == np.array(
                             fixed_initial_config['static_plan'])
                     )
-                assert np.all(np.array(collected_rewards) == reference_rewards)
+                assert np.all(
+                    np.abs(np.array(collected_rewards) - reference_rewards) < 1e-15
+                )
 
             # ...appr. consistent if the plan was re-computed
             assert np.mean(
