@@ -38,7 +38,8 @@ class PlanBasedShaping():
 
         assert self.potential_function in [
             'gaussian',
-            'box_distance'
+            'box_distance',
+            'gaussian_sum'
         ]
 
         if self.shaping_mode == 'potential_based':
@@ -121,6 +122,27 @@ class PlanBasedShaping():
             return self.relaxed_scaling * exponential_dists[
                 np.arange(len(exponential_dists)), ind_smallest_dist
             ] * (self.relaxed_offset + ind_smallest_dist/self.plan_len)
+
+        # sum all contributions instead of taking argmax
+        if self.potential_function == 'gaussian_sum':
+            # for each sample, calculate exponential distances of achieved_goal to
+            # desired_goal at each timestep
+            exponential_dists = np.exp(
+                -np.linalg.norm(
+                    achieved_goal[:, None, :] - desired_goal[:, :, :],
+                    axis=-1
+                )**2/2/self.width**2
+            )
+
+            return self.relaxed_scaling * (
+                # Since each element in the sum is <=1,
+                # and since at least one is < 1, dividing by 1/2 the number
+                # of elements makes sure that (unscaled) result is in ]0, 1[
+                # This might be "too" safe though...
+                np.sum(
+                    np.arange(self.plan_len)[None, :]/self.plan_len * exponential_dists, axis=-1
+                )*2/exponential_dists.shape[-1]
+            )
 
         # box distance function
         if self.potential_function == 'box_distance':
