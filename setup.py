@@ -23,7 +23,7 @@ setup(
     ],
     install_requires=['numpy', 'scipy', 'gym'],
     extras_require={
-        "testing": ['pytest', 'stable-baselines3', 'matplotlib']
+        "testing": ['pytest', 'stable-baselines3==1.0', 'matplotlib']
     },
     include_package_data=True,
     data_files=[("", [
