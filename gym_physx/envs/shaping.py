@@ -17,7 +17,8 @@ class PlanBasedShaping():
             width=0.2,
             potential_based_scaling=1,
             relaxed_offset=None,
-            relaxed_scaling=None
+            relaxed_scaling=None,
+            cutoff_dist=0.5
     ):
         self.shaping_mode = shaping_mode
         self.gamma = gamma
@@ -26,6 +27,7 @@ class PlanBasedShaping():
         self.potential_based_scaling = potential_based_scaling
         self.relaxed_offset = 0 if relaxed_offset is None else relaxed_offset
         self.relaxed_scaling = 0.5 if relaxed_scaling is None else relaxed_scaling
+        self.cutoff_dist = cutoff_dist
 
         self.plan_len = None
         self.plan_dim = None
@@ -38,6 +40,7 @@ class PlanBasedShaping():
 
         assert self.potential_function in [
             'gaussian',
+            'gaussian_cutoff',
             'box_distance',
             'gaussian_sum'
         ]
@@ -107,21 +110,31 @@ class PlanBasedShaping():
         desired_goal = desired_goal.reshape(-1, self.plan_len, self.plan_dim)
 
         # gaussian distance function
-        if self.potential_function == 'gaussian':
+        if self.potential_function in ['gaussian', 'gaussian_cutoff']:
             # for each sample, calculate exponential distances of achieved_goal to
             # desired_goal at each timestep
+            dists = np.linalg.norm(
+                achieved_goal[:, None, :] - desired_goal[:, :, :],
+                axis=-1
+            )
             exponential_dists = np.exp(
-                -np.linalg.norm(
-                    achieved_goal[:, None, :] - desired_goal[:, :, :],
-                    axis=-1
-                )**2/2/self.width**2
+                -dists**2/2/self.width**2
             )
 
             # calculate time of smallest (exp.) distance for each sample
             ind_smallest_dist = np.argmax(exponential_dists, axis=-1)
-            return self.relaxed_scaling * exponential_dists[
+            reward = self.relaxed_scaling * exponential_dists[
                 np.arange(len(exponential_dists)), ind_smallest_dist
             ] * (self.relaxed_offset + ind_smallest_dist/self.plan_len)
+
+            if self.potential_function == 'gaussian_cutoff':
+                reward[
+                    dists[
+                        np.arange(len(exponential_dists)), ind_smallest_dist
+                    ] > self.cutoff_dist
+                ] = 0
+            
+            return reward
 
         # sum all contributions instead of taking argmax
         if self.potential_function == 'gaussian_sum':
