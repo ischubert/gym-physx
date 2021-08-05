@@ -116,7 +116,7 @@ class PhysxPushingEnv(gym.Env):
         )
 
         # assert sufficient plan density
-        assert self.plan_length >= 50* (self.n_keyframes + 1), "Please use higher plan_length"
+        # assert self.plan_length >= 50* (self.n_keyframes + 1), "Please use higher plan_length"
         # assert consistent plan size if plan_generator is given
         if self.plan_generator is not None:
             assert self.plan_generator.plan_dim == self.dim_plan, "plan_generator: wrong plan_dim"
