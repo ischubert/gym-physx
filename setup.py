@@ -32,6 +32,8 @@ setup(
         "gym_physx/envs/config_data/pushing_large.g",
         "gym_physx/envs/config_data/pushing_large.json",
         "gym_physx/envs/config_data/pushing_obstacle.g",
-        "gym_physx/envs/config_data/pushing_obstacle.json"
+        "gym_physx/envs/config_data/pushing_obstacle.json",
+        "gym_physx/envs/config_data/pushing_obstacle_large.g",
+        "gym_physx/envs/config_data/pushing_obstacle_large.json"
     ])]
 )
