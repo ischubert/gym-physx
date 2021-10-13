@@ -391,8 +391,8 @@ class PhysxPushingEnv(gym.Env):
         This method exposes the reward function in a way that is compatible with
         the gym API for HER without plan-based reward shaping
         (see https://openai.com/blog/ingredients-for-robotics-research/).
-        In addition, state current_plan can also be provided for plan-based reward
-        shaping (and has to be if shaping mode is not None).
+        In addition, current_plan can also be provided via the info input argument
+        for plan-based reward shaping (and has to be if shaping mode is not None).
         Shaping mode potential_based also requires a previous_state
         """
         # Previous_reward has to be given if potential-based RS is used
