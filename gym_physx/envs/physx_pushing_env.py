@@ -364,7 +364,7 @@ class PhysxPushingEnv(gym.Env):
             if feasible:
                 break
 
-        return self._controlled_reset(
+        return self.controlled_reset(
             finger_position,
             box_position,
             goal_position,
@@ -862,7 +862,7 @@ class PhysxPushingEnv(gym.Env):
             self.config.frame('box').getQuaternion()
         ])
 
-    def _controlled_reset(
+    def controlled_reset(
             self,
             finger_position,
             box_position,

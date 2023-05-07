@@ -39,7 +39,7 @@ def test_pushing_obstacle():
         config_files="pushing_obstacle"
     )
 
-    env._controlled_reset(  # pylint: disable=protected-access
+    env.controlled_reset(  # pylint: disable=protected-access
         finger_position=[0, 1],
         box_position=[0, 0.5],
         goal_position=[1.5, 1.5]
@@ -100,7 +100,7 @@ def test_compare_manhattan_planner_to_saved():
 
     for element in saved_data:
         finger_pos, box_pos, target_pos, plan = element
-        obs = env._controlled_reset(
+        obs = env.controlled_reset(
             finger_position=finger_pos,
             box_position=box_pos,
             goal_position=target_pos
@@ -180,7 +180,7 @@ def test_plan_generator_from_file(n_trials, from_disk):
         box_position = plan_gen[0, 3:5]
         goal_position = plan_gen[-1, 3:5]
 
-        obs_plan = env_plan._controlled_reset(  # pylint: disable=protected-access
+        obs_plan = env_plan.controlled_reset(  # pylint: disable=protected-access
             finger_position,
             box_position,
             goal_position
@@ -228,7 +228,7 @@ def test_observations(view=False, n_trials=5):
 
             states, achieved_goals, desired_goals, rewards, dones, infos = [], [], [], [], [], []
 
-            obs = env._controlled_reset(  # pylint: disable=protected-access
+            obs = env.controlled_reset(  # pylint: disable=protected-access
                 [-0.3, 0],
                 [-0.6, -0.6],
                 [0.6, 0.6]
@@ -461,7 +461,7 @@ def test_simulation(n_trials=5, view=False):
         for _ in range(n_trials):
             rewards = []
             successes = []
-            env._controlled_reset(  # pylint: disable=protected-access
+            env.controlled_reset(  # pylint: disable=protected-access
                 [-0.3, 0],
                 [-0.6, -0.6],
                 [0.6, 0.6]
@@ -531,7 +531,7 @@ def test_friction(view=False):
         ):
             if view:
                 time.sleep(2)
-            env._controlled_reset(  # pylint: disable=protected-access
+            env.controlled_reset(  # pylint: disable=protected-access
                 reset_pos,
                 [0., 0.],
                 [-0.6, -0.6]
