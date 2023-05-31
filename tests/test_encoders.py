@@ -103,7 +103,7 @@ def test_reconstruction_from_config_encoding(
         )
 
         # assert correct reconstruction
-        assert np.max(np.abs(reconstructed_plan - obs['desired_goal'])) < 1e-14
+        assert np.max(np.abs(reconstructed_plan - obs['desired_goal'])) < 1e-6
 
 def reconstruct_plan(
         encoding,

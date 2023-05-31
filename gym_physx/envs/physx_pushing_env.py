@@ -451,7 +451,7 @@ class PhysxPushingEnv(gym.Env):
             if feasible:
                 break
 
-        return plan
+        return plan.astype(np.float32)
 
 
     def _get_manhattan_plan(self):
@@ -827,7 +827,7 @@ class PhysxPushingEnv(gym.Env):
             # without reward shaping, achieved_goal is 2D box position
             self.current_achieved_goal = self.config.frame(
                 'box'
-            ).getPosition()[:2]
+            ).getPosition()[:2].astype(np.float32)
         else:
             # with reward shaping, achieved_goal ist 3D finger + 3D box pos
             self.current_achieved_goal = self._get_state()[
@@ -856,11 +856,13 @@ class PhysxPushingEnv(gym.Env):
         Get the current state, i.e. position of the finger as well
         as the position and Quaternion of the box
         """
-        return np.concatenate([
-            self.config.getJointState()[:3],
-            self.config.frame('box').getPosition(),
-            self.config.frame('box').getQuaternion()
-        ])
+        return np.concatenate(
+            [
+                self.config.getJointState()[:3],
+                self.config.frame('box').getPosition(),
+                self.config.frame('box').getQuaternion()
+            ]
+        ).astype(np.float32) # dtype=float32 was only introduced in numpy 1.20
 
     def controlled_reset(
             self,
@@ -902,19 +904,19 @@ class PhysxPushingEnv(gym.Env):
 
         # update desired_goal according to new config
         if self.plan_based_shaping.shaping_mode is None:
-            self.current_desired_goal = np.array(goal_position.copy())
+            self.current_desired_goal = np.array(goal_position.copy(), dtype=np.float32)
         else:
             if self.fixed_initial_config is None:
                 if precomputed_plan is None:
                     self.current_desired_goal = self._get_approximate_plan()
                 else:
-                    self.current_desired_goal = precomputed_plan
+                    self.current_desired_goal = precomputed_plan.astype(np.float32)
             else:
                 # create self.static plan if it has not been initialized
                 if self.static_plan is None:
                     if 'static_plan' in self.fixed_initial_config:
                         # the plan can be given by the user...
-                        self.static_plan = self.fixed_initial_config["static_plan"]
+                        self.static_plan = self.fixed_initial_config["static_plan"].astype(np.float32)
                     else:
                         # ...or it can be calculated automatically
                         self.static_plan = self._get_approximate_plan()
