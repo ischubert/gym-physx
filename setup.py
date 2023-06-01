@@ -21,7 +21,7 @@ setup(
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
     ],
-    install_requires=['numpy', 'scipy', 'gym'],
+    install_requires=['numpy', 'scipy', 'gym==0.20'],
     extras_require={
         "testing": ['pytest', 'stable-baselines3==1.0', 'matplotlib']
     },

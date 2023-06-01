@@ -139,7 +139,7 @@ for _ in range(20):
     goal_position = envs[0]._sample_box_position()  # pylint: disable=protected-access
 
     for env, plan_length in zip(envs, plan_lengths):
-        plan = env.controlled_reset(  # pylint: disable=protected-access
+        plan = env._controlled_reset(  # pylint: disable=protected-access
             finger_position,
             box_position,
             goal_position
@@ -174,7 +174,7 @@ for _ in range(20):
     goal_position = env._sample_box_position()  # pylint: disable=protected-access
 
     for _ in range(3):
-        plan = env.controlled_reset(  # pylint: disable=protected-access
+        plan = env._controlled_reset(  # pylint: disable=protected-access
             finger_position,
             box_position,
             goal_position

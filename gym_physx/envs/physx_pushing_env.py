@@ -364,7 +364,7 @@ class PhysxPushingEnv(gym.Env):
             if feasible:
                 break
 
-        return self.controlled_reset(
+        return self._controlled_reset(
             finger_position,
             box_position,
             goal_position,
@@ -864,7 +864,7 @@ class PhysxPushingEnv(gym.Env):
             ]
         ).astype(np.float32) # dtype=float32 was only introduced in numpy 1.20
 
-    def controlled_reset(
+    def _controlled_reset(
             self,
             finger_position,
             box_position,
